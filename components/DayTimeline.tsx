@@ -62,6 +62,7 @@ const LINE_Y    = 118;
 const V_STRIP_W = 76;
 const V_LINE_X  = 8;
 const DOT_R     = 5;
+const DURATION_H = 3;
 const CARD_W    = 112;
 const CARD_W_MAX = 220;
 const CARD_H    = 26;
@@ -97,10 +98,10 @@ const t2s = (h: number, m: number, s = 0) =>
 
 // ── Zoom transition (shooting area) ───────────────────────────────────────────
 
-interface ZoneTransition { start: number; end: number; targetPx?: number; targetSecs?: number; exitSecs?: number; ramp?: number; }
+interface ZoneTransition { start: number; end: number; targetPx?: number; targetSecs?: number; exitSecs?: number; entrySecs?: number; ramp?: number; curve?: "ease" | "trapezoid"; }
 
 const ZOOM_TRANSITIONS: ZoneTransition[] = [
-  { start: t2s(10, 52,  0), end: t2s(10, 56, 30), targetSecs: 14 * 60, ramp: 0.33 },
+  { start: t2s(10, 51, 59), end: t2s(10, 56, 31), targetSecs: 14 * 60, exitSecs: 3600, curve: "ease" },
   { start: t2s(11, 54, 33), end: t2s(12, 1,  33), targetPx: 80 / 5, exitSecs: 11 * 60 },
 ];
 
@@ -108,18 +109,32 @@ function zonePeak(z: ZoneTransition, vpW: number): number {
   return z.targetSecs && vpW > 0 ? vpW / z.targetSecs : (z.targetPx ?? MAX_PX);
 }
 
+function easeInOut(t: number): number {
+  return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+}
+
 function transitionPx(centerSecs: number, vpW: number): number | null {
   for (const z of ZOOM_TRANSITIONS) {
     const span = z.end - z.start;
     const pos = centerSecs - z.start;
     if (pos < 0 || pos > span) continue;
-    const ramp = span * (z.ramp ?? 0.45);
     const peak = zonePeak(z, vpW);
+    const entryPx = z.entrySecs && vpW > 0 ? vpW / z.entrySecs : MIN_PX;
     const exitPx = z.exitSecs && vpW > 0 ? vpW / z.exitSecs : MIN_PX;
+
+    if (z.curve === "ease") {
+      const t = pos / span;
+      if (t <= 0.5) {
+        return entryPx + (peak - entryPx) * easeInOut(t * 2);
+      }
+      return peak + (exitPx - peak) * easeInOut((t - 0.5) * 2);
+    }
+
+    const ramp = span * (z.ramp ?? 0.45);
     if (pos < ramp) {
       const lt = pos / ramp;
       const t = lt * lt * lt * lt * lt * lt * lt;
-      return MIN_PX + (peak - MIN_PX) * t;
+      return entryPx + (peak - entryPx) * t;
     } else if (pos > span - ramp) {
       const lt = (span - pos) / ramp;
       const t = lt * lt * lt * lt * lt * lt * lt;
@@ -716,12 +731,21 @@ export default function DayTimeline() {
 
   const clustersV = buildClusters(visibleV.map(({ evt, y }) => ({ evt, pos: y })));
 
+  const visibleDurations = EVENTS.filter((evt): evt is Evt & { endTime: Date } => !!evt.endTime)
+    .map(evt => {
+      const start = (evt.time.getTime() - START_MS) / 1000 * px - off;
+      const end = (evt.endTime.getTime() - START_MS) / 1000 * px - off;
+      return { evt, start, end };
+    })
+    .filter(({ start, end }) => end >= -20 && start <= vpW + 20);
+
   const shootZone = ZOOM_TRANSITIONS[1];
   const zoneX0 = (shootZone.start - 25) * px - off;
   const zoneX1 = (shootZone.end   - 25) * px - off;
-  const dmhZone = ZOOM_TRANSITIONS[0];
-  const zone2X0 = dmhZone.start * px - off;
-  const zone2X1 = dmhZone.end   * px - off;
+  const dmhHighlightStart = (EVENTS[1].time.getTime() - START_MS) / 1000;
+  const dmhHighlightEnd   = (EVENTS[3].time.getTime() - START_MS) / 1000;
+  const zone2X0 = dmhHighlightStart * px - off;
+  const zone2X1 = dmhHighlightEnd   * px - off + DOT_R * 2 + 2;
 
   // ── Ruler label arrays (DOM, so they can animate) ─────────────────────────
 
@@ -892,6 +916,22 @@ export default function DayTimeline() {
             <canvas ref={canvasRef} className="absolute inset-0 pointer-events-none" />
             <div className="absolute inset-x-0 pointer-events-none" style={{ top: zone2X0, height: Math.max(0, zone2X1 - zone2X0), background: "rgba(255,68,68,0.08)", borderTop: "1px solid rgba(255,68,68,0.25)", borderBottom: "1px solid rgba(255,68,68,0.25)" }} />
             <div className="absolute inset-x-0 pointer-events-none" style={{ top: zoneX0, height: Math.max(0, zoneX1 - zoneX0), background: "rgba(255,68,68,0.08)", borderTop: "1px solid rgba(255,68,68,0.25)", borderBottom: "1px solid rgba(255,68,68,0.25)" }} />
+            {px > 0 && visibleDurations.map(({ evt, start, end }) => {
+              const isSel = selected?.id === evt.id;
+              return (
+              <div
+                key={`dur-${evt.id}`}
+                className="absolute pointer-events-none"
+                style={{
+                  left: V_LINE_X - DURATION_H / 2,
+                  top: start,
+                  width: DURATION_H,
+                  height: Math.max(0, end - start),
+                  backgroundColor: isSel ? evt.color : `${evt.color}99`,
+                  zIndex: isSel ? 1 : 0,
+                }}
+              />
+            );})}
             {px > 0 && clustersV.map((cluster) => {
               const { lead, pos: y, r, evts } = cluster;
               const isSel = evts.some(e => selected?.id === e.id);
@@ -963,6 +1003,22 @@ export default function DayTimeline() {
             <canvas ref={canvasRef} className="absolute inset-0 pointer-events-none" />
             <div className="absolute inset-y-0 pointer-events-none" style={{ left: zone2X0, width: Math.max(0, zone2X1 - zone2X0), background: "rgba(255,68,68,0.08)", borderLeft: "1px solid rgba(255,68,68,0.25)", borderRight: "1px solid rgba(255,68,68,0.25)" }} />
             <div className="absolute inset-y-0 pointer-events-none" style={{ left: zoneX0, width: Math.max(0, zoneX1 - zoneX0), background: "rgba(255,68,68,0.08)", borderLeft: "1px solid rgba(255,68,68,0.25)", borderRight: "1px solid rgba(255,68,68,0.25)" }} />
+            {px > 0 && visibleDurations.map(({ evt, start, end }) => {
+              const isSel = selected?.id === evt.id;
+              return (
+              <div
+                key={`dur-${evt.id}`}
+                className="absolute pointer-events-none"
+                style={{
+                  left: start,
+                  top: LINE_Y - DURATION_H / 2,
+                  width: Math.max(0, end - start),
+                  height: DURATION_H,
+                  backgroundColor: isSel ? evt.color : `${evt.color}99`,
+                  zIndex: isSel ? 1 : 0,
+                }}
+              />
+            );})}
             {px > 0 && clusters.map((cluster) => {
               const { lead, pos: x, r, evts } = cluster;
               const lane = clusterLanes[lead.id] ?? 0;
