@@ -1,0 +1,197 @@
+- generic [active] [ref=e1]:
+  - banner [ref=e2]:
+    - link "Skip to content" [ref=e3] [cursor=pointer]:
+      - /url: "#maincontent"
+    - generic [ref=e4]:
+      - link "Justice for Yong Yang" [ref=e5] [cursor=pointer]:
+        - /url: /
+      - navigation "Main navigation" [ref=e6]:
+        - link "Yong Yang ▾" [ref=e8] [cursor=pointer]:
+          - /url: /yong
+          - text: Yong Yang
+          - generic [ref=e9]: ▾
+        - link "What happened ▾" [ref=e11] [cursor=pointer]:
+          - /url: /what-happened
+          - text: What happened
+          - generic [ref=e12]: ▾
+        - link "Legal cases ▾" [ref=e14] [cursor=pointer]:
+          - /url: /legal
+          - text: Legal cases
+          - generic [ref=e15]: ▾
+        - link "Take action ▾" [ref=e17] [cursor=pointer]:
+          - /url: /events
+          - text: Take action
+          - generic [ref=e18]: ▾
+        - link "News ▾" [ref=e20] [cursor=pointer]:
+          - /url: /news
+          - text: News
+          - generic [ref=e21]: ▾
+        - link "Resources ▾" [ref=e23] [cursor=pointer]:
+          - /url: /references
+          - text: Resources
+          - generic [ref=e24]: ▾
+      - button "Share →" [ref=e25]
+  - main [ref=e26]:
+    - generic [ref=e27]:
+      - generic [ref=e28]:
+        - paragraph [ref=e29]: May 2, 2024
+        - heading "What Happened" [level=1] [ref=e30]
+        - paragraph [ref=e31]: The facts of how Yong Yang was killed, where it happened, and the evidence that followed.
+      - generic [ref=e32]:
+        - heading "How Yong Was Killed" [level=2] [ref=e33]
+        - paragraph [ref=e34]: On May 2, 2024, someone called 911 about a mental health crisis involving Yong Yang, a 40-year-old Korean American. LAPD officers responded to the scene — his parents' home in the Koreatown neighborhood of Los Angeles. Within minutes of arrival, officers shot and killed Yong Yang.
+        - paragraph [ref=e35]: Yong was experiencing a mental health episode. He posed no lethal threat justifying the use of deadly force. He needed medical care and crisis intervention — not a police response that ended his life.
+        - heading "Where It Happened" [level=2] [ref=e36]
+        - paragraph [ref=e37]: Yong Yang was killed at his parents' home in Koreatown, Los Angeles — a neighborhood with a dense Korean-American population and one of the highest concentrations of Korean culture outside of Korea.
+        - paragraph [ref=e38]: He was killed inside or immediately outside the family home, during what should have been a welfare check or mental health intervention.
+        - heading "Body Camera Footage" [level=2] [ref=e39]
+        - paragraph [ref=e40]:
+          - text: LAPD officers were equipped with body-worn cameras at the time of the shooting. The family filed a legal petition (24STCP02107) to compel the release of this footage. The petition was
+          - strong [ref=e41]: granted in March 2025
+          - text: .
+        - paragraph [ref=e42]: Body camera footage has since been released. It documents the moments leading up to and including the shooting of Yong Yang.
+        - paragraph [ref=e43]:
+          - link "Read more about the bodycam petition (24STCP02107) →" [ref=e44] [cursor=pointer]:
+            - /url: /legal/civil-petition
+        - heading "Evidence & Oddities" [level=2] [ref=e45]
+        - paragraph [ref=e46]: "The circumstances surrounding Yong Yang's death raise serious questions that his family, legal team, and community advocates continue to investigate and document:"
+        - list [ref=e47]:
+          - listitem [ref=e48]: Whether LAPD followed its own crisis intervention protocols before resorting to lethal force
+          - listitem [ref=e49]: Whether proper de-escalation techniques were attempted
+          - listitem [ref=e50]: The timeline between the 911 call and the shooting
+          - listitem [ref=e51]: The conduct of individual officers and supervisors present
+        - paragraph [ref=e52]:
+          - text: These questions form the factual basis of both the
+          - link "state civil lawsuit" [ref=e53] [cursor=pointer]:
+            - /url: /legal/civil-lawsuit
+          - text: and the
+          - link "federal civil rights lawsuit" [ref=e54] [cursor=pointer]:
+            - /url: /legal/federal-lawsuit
+          - text: filed on behalf of Yong's family.
+      - generic [ref=e55]:
+        - link "Legal Cases → Three active lawsuits" [ref=e56] [cursor=pointer]:
+          - /url: /legal
+          - heading "Legal Cases →" [level=3] [ref=e57]
+          - paragraph [ref=e58]: Three active lawsuits
+        - link "Who Was Yong? → His life and his story" [ref=e59] [cursor=pointer]:
+          - /url: /yong
+          - heading "Who Was Yong? →" [level=3] [ref=e60]
+          - paragraph [ref=e61]: His life and his story
+    - generic [ref=e63]:
+      - heading "May 2, 2024 — Minute by Minute" [level=2] [ref=e64]
+      - paragraph [ref=e65]: Drag or scroll to pan · Ctrl+scroll to zoom · Click any event to read details · Press play to step through
+      - generic [ref=e66]:
+        - generic [ref=e67]:
+          - paragraph [ref=e69]: Select an event
+          - button "Play" [ref=e70]:
+            - img [ref=e71]
+        - generic [ref=e73]:
+          - button "Mom calls DMH" [ref=e74]:
+            - generic [ref=e75]: Mom calls DMH
+          - button "DMH clinician Yoon arrives" [ref=e77]:
+            - generic [ref=e78]: DMH clinician Yoon arrives
+          - button "Yoon enters without permission" [ref=e80]:
+            - generic [ref=e81]: Yoon enters without permission
+          - button "Yoon calls 911" [ref=e83]:
+            - generic [ref=e84]: Yoon calls 911
+          - button "Lopez & partner arrive" [ref=e86]:
+            - generic [ref=e87]: Lopez & partner arrive
+          - button "Officers talk to Yong (35s)" [ref=e89]:
+            - generic [ref=e90]: Officers talk to Yong (35s)
+          - button "Ruvalcaba assigns weapon roles" [ref=e92]:
+            - generic [ref=e93]: Ruvalcaba assigns weapon roles
+          - button "Use of force declared" [ref=e95]:
+            - generic [ref=e96]: Use of force declared
+          - button "Paramedics arrive with gurney" [ref=e98]:
+            - generic [ref=e99]: Paramedics arrive with gurney
+          - button "USC is the destination" [ref=e101]:
+            - generic [ref=e102]: USC is the destination
+          - button "Door forced open" [ref=e104]:
+            - generic [ref=e105]: Door forced open
+          - button "Gurney arrives at doorstep" [ref=e107]:
+            - generic [ref=e108]: Gurney arrives at doorstep
+          - button "Lopez shoots Yong" [ref=e110]:
+            - generic [ref=e111]: Lopez shoots Yong
+          - button "Paramedics ordered to leave" [ref=e113]:
+            - generic [ref=e114]: Paramedics ordered to leave
+          - button "\"Officer Needs Help\" call issued" [ref=e116]:
+            - generic [ref=e117]: "\"Officer Needs Help\" call issued"
+          - button "Paramedics leave with gurney" [ref=e119]:
+            - generic [ref=e120]: Paramedics leave with gurney
+          - button "Ambulance leaves scene" [ref=e122]:
+            - generic [ref=e123]: Ambulance leaves scene
+          - button "Less-lethal gun removed" [ref=e125]:
+            - generic [ref=e126]: Less-lethal gun removed
+          - button "LAFD first team arrives" [ref=e128]:
+            - generic [ref=e129]: LAFD first team arrives
+          - button "LAFD second team arrives" [ref=e131]:
+            - generic [ref=e132]: LAFD second team arrives
+          - button "Yong declared dead" [ref=e134]:
+            - generic [ref=e135]: Yong declared dead
+          - button "Ponce says \"sorry for your loss\"" [ref=e137]:
+            - generic [ref=e138]: Ponce says "sorry for your loss"
+          - button "Death reported to Medical Examiner" [ref=e140]:
+            - generic [ref=e141]: Death reported to Medical Examiner
+          - button "Parents taken to Olympic Station" [ref=e143]:
+            - generic [ref=e144]: Parents taken to Olympic Station
+          - button "Parents interrogated at FID" [ref=e146]:
+            - generic [ref=e147]: Parents interrogated at FID
+          - button "Medical Examiner arrives" [ref=e149]:
+            - generic [ref=e150]: Medical Examiner arrives
+          - button "Parents return to see Yong's body" [ref=e152]:
+            - generic [ref=e153]: Parents return to see Yong's body
+          - button "Body taken without family's knowledge" [ref=e155]:
+            - generic [ref=e156]: Body taken without family's knowledge
+          - button "Scene investigation completed" [ref=e158]:
+            - generic [ref=e159]: Scene investigation completed
+  - contentinfo [ref=e161]:
+    - generic [ref=e162]:
+      - generic [ref=e163]:
+        - generic [ref=e164]:
+          - paragraph [ref=e165]: Justice for Yong Yang
+          - paragraph [ref=e166]: Yong Yang was killed by LAPD on May 2, 2024. This site documents the ongoing fight for justice, accountability, and truth.
+          - link "YouTube" [ref=e168] [cursor=pointer]:
+            - /url: https://www.youtube.com/@JusticeForYongYang
+            - img [ref=e169]
+        - generic [ref=e171]:
+          - heading "Pages" [level=3] [ref=e172]
+          - list [ref=e173]:
+            - listitem [ref=e174]:
+              - link "Yong's Story" [ref=e175] [cursor=pointer]:
+                - /url: /yong
+            - listitem [ref=e176]:
+              - link "Legal Cases" [ref=e177] [cursor=pointer]:
+                - /url: /legal
+            - listitem [ref=e178]:
+              - link "Events & Rallies" [ref=e179] [cursor=pointer]:
+                - /url: /events
+            - listitem [ref=e180]:
+              - link "Art for Yong" [ref=e181] [cursor=pointer]:
+                - /url: /art
+            - listitem [ref=e182]:
+              - link "News" [ref=e183] [cursor=pointer]:
+                - /url: /news
+            - listitem [ref=e184]:
+              - link "References" [ref=e185] [cursor=pointer]:
+                - /url: /references
+            - listitem [ref=e186]:
+              - link "Videos" [ref=e187] [cursor=pointer]:
+                - /url: /videos
+        - generic [ref=e188]:
+          - heading "Cases" [level=3] [ref=e189]
+          - list [ref=e190]:
+            - listitem [ref=e191]:
+              - link "24STCP02107 – Civil Petition" [ref=e192] [cursor=pointer]:
+                - /url: /legal/civil-petition
+            - listitem [ref=e193]:
+              - link "24STCV24804 – Civil Lawsuit" [ref=e194] [cursor=pointer]:
+                - /url: /legal/civil-lawsuit
+            - listitem [ref=e195]:
+              - link "26-cv-01014 – Federal Lawsuit" [ref=e196] [cursor=pointer]:
+                - /url: /legal/federal-lawsuit
+          - generic [ref=e197]:
+            - link "Privacy Policy" [ref=e198] [cursor=pointer]:
+              - /url: /privacy-policy
+            - link "Terms" [ref=e199] [cursor=pointer]:
+              - /url: /terms
+      - paragraph [ref=e201]: © 2026 Justice for Yong Yang. All rights reserved.

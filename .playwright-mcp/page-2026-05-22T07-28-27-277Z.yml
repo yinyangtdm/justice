@@ -1,0 +1,122 @@
+- generic [active] [ref=e1]:
+  - banner [ref=e2]:
+    - link "Skip to content" [ref=e3] [cursor=pointer]:
+      - /url: "#maincontent"
+    - generic [ref=e4]:
+      - link "Justice for Yong Yang" [ref=e5] [cursor=pointer]:
+        - /url: /
+      - button "Toggle menu" [ref=e6]:
+        - img [ref=e7]
+  - main [ref=e9]:
+    - generic [ref=e11]:
+      - paragraph [ref=e12]: May 2, 2024 · Los Angeles, CA
+      - heading "Justice for Yong Yang" [level=1] [ref=e13]
+      - paragraph [ref=e14]: Yong Yang, a 40-year-old Korean American, was killed by LAPD officers on May 2, 2024. This site documents the community's pursuit of accountability, the legal proceedings, and the truth behind his death.
+      - generic [ref=e15]:
+        - link "Yong's Story" [ref=e16] [cursor=pointer]:
+          - /url: /yong
+        - link "What Happened" [ref=e17] [cursor=pointer]:
+          - /url: /what-happened
+        - link "Legal Cases" [ref=e18] [cursor=pointer]:
+          - /url: /legal
+    - generic [ref=e19]:
+      - heading "Learn More" [level=2] [ref=e20]
+      - generic [ref=e21]:
+        - link "◈ Who Was Yong? Learn about Yong Yang — his life, his family, and the circumstances of his death." [ref=e22] [cursor=pointer]:
+          - /url: /yong
+          - generic [ref=e23]: ◈
+          - heading "Who Was Yong?" [level=3] [ref=e24]
+          - paragraph [ref=e25]: Learn about Yong Yang — his life, his family, and the circumstances of his death.
+        - link "◉ What Happened The facts of how Yong was killed, where, and the evidence that followed." [ref=e26] [cursor=pointer]:
+          - /url: /what-happened
+          - generic [ref=e27]: ◉
+          - heading "What Happened" [level=3] [ref=e28]
+          - paragraph [ref=e29]: The facts of how Yong was killed, where, and the evidence that followed.
+        - link "◇ Legal Cases Civil petition, civil lawsuit, and federal lawsuit filed on behalf of Yong's family." [ref=e30] [cursor=pointer]:
+          - /url: /legal
+          - generic [ref=e31]: ◇
+          - heading "Legal Cases" [level=3] [ref=e32]
+          - paragraph [ref=e33]: Civil petition, civil lawsuit, and federal lawsuit filed on behalf of Yong's family.
+        - link "◆ Take Action Community organizing, protests, and public gatherings in support of justice." [ref=e34] [cursor=pointer]:
+          - /url: /events
+          - generic [ref=e35]: ◆
+          - heading "Take Action" [level=3] [ref=e36]
+          - paragraph [ref=e37]: Community organizing, protests, and public gatherings in support of justice.
+    - generic [ref=e39]:
+      - heading "What Happened" [level=2] [ref=e40]
+      - generic [ref=e41]:
+        - paragraph [ref=e42]: On May 2, 2024, LAPD officers responded to a mental health crisis call involving Yong Yang, a 40-year-old Korean American living in the Koreatown area of Los Angeles. Yong was shot and killed by LAPD officers. He was unarmed in the way that matters most — he posed no lethal threat that warranted deadly force.
+        - paragraph [ref=e43]: His family, community members, and advocates have been fighting ever since for accountability, transparency, and justice — through the courts, through public organizing, and through continued community pressure on the LAPD and the Los Angeles District Attorney's office.
+        - paragraph [ref=e44]:
+          - text: "Three active legal cases are currently in progress:"
+          - link "a civil petition (24STCP02107)" [ref=e45] [cursor=pointer]:
+            - /url: /legal/civil-petition
+          - text: ","
+          - link "a civil lawsuit (24STCV24804)" [ref=e46] [cursor=pointer]:
+            - /url: /legal/civil-lawsuit
+          - text: ", and"
+          - link "a federal civil rights lawsuit (2:26-cv-01014)" [ref=e47] [cursor=pointer]:
+            - /url: /legal/federal-lawsuit
+          - text: .
+      - link "Full account of what happened →" [ref=e49] [cursor=pointer]:
+        - /url: /what-happened
+    - generic [ref=e51]:
+      - generic [ref=e52]:
+        - heading "Events & Rallies" [level=2] [ref=e53]
+        - paragraph [ref=e54]: The community continues to organize and demand justice.
+      - link "View all events →" [ref=e55] [cursor=pointer]:
+        - /url: /events
+  - contentinfo [ref=e56]:
+    - generic [ref=e57]:
+      - generic [ref=e58]:
+        - generic [ref=e59]:
+          - paragraph [ref=e60]: Justice for Yong Yang
+          - paragraph [ref=e61]: Yong Yang was killed by LAPD on May 2, 2024. This site documents the ongoing fight for justice, accountability, and truth.
+          - link "YouTube" [ref=e63] [cursor=pointer]:
+            - /url: https://www.youtube.com/@JusticeForYongYang
+            - img [ref=e64]
+        - generic [ref=e66]:
+          - heading "Pages" [level=3] [ref=e67]
+          - list [ref=e68]:
+            - listitem [ref=e69]:
+              - link "Yong's Story" [ref=e70] [cursor=pointer]:
+                - /url: /yong
+            - listitem [ref=e71]:
+              - link "Timeline" [ref=e72] [cursor=pointer]:
+                - /url: /timeline
+            - listitem [ref=e73]:
+              - link "Legal Cases" [ref=e74] [cursor=pointer]:
+                - /url: /legal
+            - listitem [ref=e75]:
+              - link "Events & Rallies" [ref=e76] [cursor=pointer]:
+                - /url: /events
+            - listitem [ref=e77]:
+              - link "Art for Yong" [ref=e78] [cursor=pointer]:
+                - /url: /art
+            - listitem [ref=e79]:
+              - link "News" [ref=e80] [cursor=pointer]:
+                - /url: /news
+            - listitem [ref=e81]:
+              - link "References" [ref=e82] [cursor=pointer]:
+                - /url: /references
+            - listitem [ref=e83]:
+              - link "Videos" [ref=e84] [cursor=pointer]:
+                - /url: /videos
+        - generic [ref=e85]:
+          - heading "Cases" [level=3] [ref=e86]
+          - list [ref=e87]:
+            - listitem [ref=e88]:
+              - link "24STCP02107 – Civil Petition" [ref=e89] [cursor=pointer]:
+                - /url: /legal/civil-petition
+            - listitem [ref=e90]:
+              - link "24STCV24804 – Civil Lawsuit" [ref=e91] [cursor=pointer]:
+                - /url: /legal/civil-lawsuit
+            - listitem [ref=e92]:
+              - link "26-cv-01014 – Federal Lawsuit" [ref=e93] [cursor=pointer]:
+                - /url: /legal/federal-lawsuit
+          - generic [ref=e94]:
+            - link "Privacy Policy" [ref=e95] [cursor=pointer]:
+              - /url: /privacy-policy
+            - link "Terms" [ref=e96] [cursor=pointer]:
+              - /url: /terms
+      - paragraph [ref=e98]: © 2026 Justice for Yong Yang. All rights reserved.

@@ -1,0 +1,127 @@
+- generic [active] [ref=e1]:
+  - banner [ref=e2]:
+    - link "Skip to content" [ref=e3] [cursor=pointer]:
+      - /url: "#maincontent"
+    - generic [ref=e4]:
+      - link "Justice for Yong Yang" [ref=e5] [cursor=pointer]:
+        - /url: /
+      - navigation "Main navigation" [ref=e6]:
+        - link "Yong Yang ▾" [ref=e8] [cursor=pointer]:
+          - /url: /yong
+          - text: Yong Yang
+          - generic [ref=e9]: ▾
+        - link "What happened ▾" [ref=e11] [cursor=pointer]:
+          - /url: /what-happened
+          - text: What happened
+          - generic [ref=e12]: ▾
+        - link "Legal cases ▾" [ref=e14] [cursor=pointer]:
+          - /url: /legal
+          - text: Legal cases
+          - generic [ref=e15]: ▾
+        - link "Take action ▾" [ref=e17] [cursor=pointer]:
+          - /url: /events
+          - text: Take action
+          - generic [ref=e18]: ▾
+        - link "News ▾" [ref=e20] [cursor=pointer]:
+          - /url: /news
+          - text: News
+          - generic [ref=e21]: ▾
+        - link "Resources ▾" [ref=e23] [cursor=pointer]:
+          - /url: /references
+          - text: Resources
+          - generic [ref=e24]: ▾
+      - button "Share →" [ref=e25]
+  - main [ref=e26]:
+    - generic [ref=e27]:
+      - generic [ref=e28]:
+        - paragraph [ref=e29]: May 2, 2024
+        - heading "Timeline" [level=1] [ref=e30]
+        - paragraph [ref=e31]: Drag or scroll to pan · Ctrl+scroll to zoom · Click any event to read details · Press play to step through
+      - generic [ref=e32]:
+        - generic [ref=e34]:
+          - paragraph [ref=e35]: Select an event
+          - generic [ref=e36]:
+            - generic [ref=e37]:
+              - img [ref=e38]
+              - generic [ref=e41]:
+                - text: Drag to pan·
+                - generic [ref=e42]: Ctrl + scroll ↕
+                - text: to zoom
+            - generic [ref=e43]:
+              - img [ref=e44]
+              - generic [ref=e48]: Swipe to pan·Pinch ↔ to zoom
+            - generic [ref=e49]:
+              - img [ref=e50]
+              - generic [ref=e54]: Tap any event to read details
+        - generic [ref=e55]:
+          - button "Mom calls DMH" [ref=e56] [cursor=pointer]:
+            - generic [ref=e58]: Mom calls DMH
+          - button "DMH clinician Yoon arrives" [ref=e59] [cursor=pointer]:
+            - generic [ref=e61]: DMH clinician Yoon arrives
+          - button "Yoon enters without permission" [ref=e62] [cursor=pointer]:
+            - generic [ref=e64]: Yoon enters without permission
+          - button "Yoon calls 911" [ref=e65] [cursor=pointer]:
+            - generic [ref=e67]: Yoon calls 911
+          - generic: 8:15 AM
+          - generic: 8:30 AM
+          - generic: 8:45 AM
+          - generic: 9:00 AM
+          - generic: 9:15 AM
+          - generic: 9:30 AM
+          - generic: 9:45 AM
+          - generic: 10:00 AM
+          - generic: 10:15 AM
+          - generic: 10:30 AM
+          - generic: 10:45 AM
+  - contentinfo [ref=e68]:
+    - generic [ref=e69]:
+      - generic [ref=e70]:
+        - generic [ref=e71]:
+          - paragraph [ref=e72]: Justice for Yong Yang
+          - paragraph [ref=e73]: Yong Yang was killed by LAPD on May 2, 2024. This site documents the ongoing fight for justice, accountability, and truth.
+          - link "YouTube" [ref=e75] [cursor=pointer]:
+            - /url: https://www.youtube.com/@JusticeForYongYang
+            - img [ref=e76]
+        - generic [ref=e78]:
+          - heading "Pages" [level=3] [ref=e79]
+          - list [ref=e80]:
+            - listitem [ref=e81]:
+              - link "Yong's Story" [ref=e82] [cursor=pointer]:
+                - /url: /yong
+            - listitem [ref=e83]:
+              - link "Legal Cases" [ref=e84] [cursor=pointer]:
+                - /url: /legal
+            - listitem [ref=e85]:
+              - link "Events & Rallies" [ref=e86] [cursor=pointer]:
+                - /url: /events
+            - listitem [ref=e87]:
+              - link "Art for Yong" [ref=e88] [cursor=pointer]:
+                - /url: /art
+            - listitem [ref=e89]:
+              - link "News" [ref=e90] [cursor=pointer]:
+                - /url: /news
+            - listitem [ref=e91]:
+              - link "References" [ref=e92] [cursor=pointer]:
+                - /url: /references
+            - listitem [ref=e93]:
+              - link "Videos" [ref=e94] [cursor=pointer]:
+                - /url: /videos
+        - generic [ref=e95]:
+          - heading "Cases" [level=3] [ref=e96]
+          - list [ref=e97]:
+            - listitem [ref=e98]:
+              - link "24STCP02107 – Civil Petition" [ref=e99] [cursor=pointer]:
+                - /url: /legal/civil-petition
+            - listitem [ref=e100]:
+              - link "24STCV24804 – Civil Lawsuit" [ref=e101] [cursor=pointer]:
+                - /url: /legal/civil-lawsuit
+            - listitem [ref=e102]:
+              - link "26-cv-01014 – Federal Lawsuit" [ref=e103] [cursor=pointer]:
+                - /url: /legal/federal-lawsuit
+          - generic [ref=e104]:
+            - link "Privacy Policy" [ref=e105] [cursor=pointer]:
+              - /url: /privacy-policy
+            - link "Terms" [ref=e106] [cursor=pointer]:
+              - /url: /terms
+      - paragraph [ref=e108]: © 2026 Justice for Yong Yang. All rights reserved.
+  - alert [ref=e109]
