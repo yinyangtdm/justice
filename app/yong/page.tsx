@@ -40,9 +40,10 @@ export default function YongPage() {
 
         <h2>Who He Was</h2>
         <p>
-          Yong was known for his warmth, his humor, and his dedication to his family. He immigrated
-          to the United States and built a life in Los Angeles. His loss has devastated his family
-          and a community that refuses to let his death be forgotten.
+          Yong was known for his warmth, his humor, and his dedication to his family. He came to
+          the United States at 10 months old and was raised in Los Angeles, where he built his life.
+          His loss has devastated his family and a community that refuses to let his death be
+          forgotten.
         </p>
 
         <h2>The Fight for Justice</h2>

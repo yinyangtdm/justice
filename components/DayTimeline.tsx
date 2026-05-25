@@ -11,6 +11,8 @@ interface Evt {
   time: Date;
   endTime?: Date;
   text: string;
+  videoUrl?: string;
+  thumbnailUrl?: string;
   color: string;
 }
 
@@ -18,7 +20,13 @@ interface Evt {
 
 const d = (h: number, m: number, s = 0) => new Date(2024, 4, 2, h, m, s);
 
-const EVENTS: Evt[] = [
+const TEST_VIDEO_IDS = [
+  "dQw4w9WgXcQ", "jNQXAC9IVRw", "9bZkp7q19f0", "kJQP7kiw5Fk",
+  "M7lc1UVf-VE", "L_jWHffIx5E", "fJ9rUzIMcZQ", "RgKAFK5djSk",
+  "OPf0YbXqDm0", "hTWKbEkeZ0I", "CevxRWRWxXk", "y6120QOlsfU",
+];
+
+const RAW_EVENTS: Omit<Evt, "videoUrl">[] = [
   { id: "1",  title: "Mom calls DMH",                      time: d(9,35),      endTime: d(9,55),      color: "#4A9EFF", text: "Mom calls the Department of Mental Health to request assistance with her son, who is having a mental health crisis. He is having persecutory delusions and auditory hallucinations." },
   { id: "2",  title: "DMH clinician Yoon arrives",          time: d(10,53,40),  endTime: d(10,54,5),   color: "#4A9EFF", text: "DMH clinician Yoon arrives. Dad takes him to talk to Yong, who says he only wants to see his father. Nobody else." },
   { id: "3",  title: "Yoon enters without permission",      time: d(10,54,5),   endTime: d(10,54,20),  color: "#FF8C42", text: "Dad opens the door to talk to Yong, and Yoon enters without permission, ignoring Yong's wishes. He gets promptly dismissed." },
@@ -52,6 +60,11 @@ const EVENTS: Evt[] = [
   { id: "33", title: "Mom and Dad allowed to go back home", time: d(20,21),                            color: "#4A9EFF", text: "Mom and Dad are finally allowed to return to their apartment." },
 ];
 
+const EVENTS: Evt[] = RAW_EVENTS.map((evt, i) => ({
+  ...evt,
+  videoUrl: `https://www.youtube.com/embed/${TEST_VIDEO_IDS[i % TEST_VIDEO_IDS.length]}`,
+}));
+
 // ── Constants ─────────────────────────────────────────────────────────────────
 
 const START_MS   = new Date(2024, 4, 2, 8, 0, 0).getTime();
@@ -59,7 +72,7 @@ const TOTAL_SECS = (new Date(2024, 4, 2, 22, 0, 0).getTime() - START_MS) / 1000;
 
 const STRIP_H   = 160;
 const LINE_Y    = 118;
-const V_STRIP_W = 76;
+const V_STRIP_W = 44;
 const V_LINE_X  = 8;
 const DOT_R     = 5;
 const DURATION_H = 3;
@@ -69,17 +82,60 @@ const CARD_H    = 26;
 const LANE_H    = 34;
 const MAX_LANES = 3;
 
+const SCROLL_ANIM_MS = 950;
+const PANEL_ADJACENT_MS = 600;
 const MIN_PX    = 80 / 615;
 const MAX_PX    = 80 / 60;   // max zoom: ~1 min visible
 
 const COLOR_PRI: Record<string, number> = { "#FF4444": 2, "#FF8C42": 1, "#4A9EFF": 0 };
 const clusterR  = (n: number) => n > 1 ? DOT_R + 2 : DOT_R;
 
+const YOON_DMH_IDS = ["2", "3", "4"] as const;
+const YOON_DMH_LEAD_ID = "2";
+const YOON_DMH_MERGE_SECS = 20 * 60;
+
 interface Cluster { evts: Evt[]; lead: Evt; pos: number; r: number; }
 
-function buildClusters(items: { evt: Evt; pos: number }[]): Cluster[] {
+function pickClusterLead(g: { evt: Evt; pos: number }[]): Evt {
+  const lead = g.find(i => i.evt.id === YOON_DMH_LEAD_ID);
+  if (lead && g.some(i => (YOON_DMH_IDS as readonly string[]).includes(i.evt.id))) {
+    return lead.evt;
+  }
+  return g.reduce(
+    (b, a) => ((COLOR_PRI[a.evt.color] ?? 0) > (COLOR_PRI[b.evt.color] ?? 0) ? a : b),
+  ).evt;
+}
+
+function buildClusters(
+  items: { evt: Evt; pos: number }[],
+  zoomedOut: boolean,
+): Cluster[] {
   if (!items.length) return [];
-  const sorted = [...items].sort((a, b) => a.pos - b.pos);
+
+  const yoonSet = new Set<string>(YOON_DMH_IDS);
+  let pool = items;
+  let yoonCluster: Cluster | null = null;
+
+  if (zoomedOut) {
+    const visibleYoon = items.filter(i => yoonSet.has(i.evt.id));
+    if (visibleYoon.length > 0) {
+      const leadItem = visibleYoon.find(i => i.evt.id === YOON_DMH_LEAD_ID) ?? visibleYoon[0];
+      const allYoon = YOON_DMH_IDS
+        .map(id => EVENTS.find(e => e.id === id))
+        .filter((e): e is Evt => !!e);
+      yoonCluster = {
+        evts: allYoon,
+        lead: allYoon.find(e => e.id === YOON_DMH_LEAD_ID) ?? allYoon[0],
+        pos: leadItem.pos,
+        r: clusterR(allYoon.length),
+      };
+      pool = items.filter(i => !yoonSet.has(i.evt.id));
+    }
+  }
+
+  if (!pool.length) return yoonCluster ? [yoonCluster] : [];
+
+  const sorted = [...pool].sort((a, b) => a.pos - b.pos);
   const groups: { evt: Evt; pos: number }[][] = [];
   let cur = [sorted[0]];
   for (let i = 1; i < sorted.length; i++) {
@@ -87,10 +143,17 @@ function buildClusters(items: { evt: Evt; pos: number }[]): Cluster[] {
     else { groups.push(cur); cur = [sorted[i]]; }
   }
   groups.push(cur);
-  return groups.map(g => {
-    const lead = g.reduce((b, a) => (COLOR_PRI[a.evt.color] ?? 0) > (COLOR_PRI[b.evt.color] ?? 0) ? a : b);
-    return { evts: g.map(i => i.evt), lead: lead.evt, pos: lead.pos, r: clusterR(g.length) };
-  });
+
+  const clusters = groups.map(g => ({
+    evts: g.map(i => i.evt),
+    lead: pickClusterLead(g),
+    pos: g.reduce((b, a) => (COLOR_PRI[a.evt.color] ?? 0) > (COLOR_PRI[b.evt.color] ?? 0) ? a : b).pos,
+    r: clusterR(g.length),
+  }));
+
+  if (yoonCluster) clusters.push(yoonCluster);
+  clusters.sort((a, b) => a.pos - b.pos);
+  return clusters;
 }
 
 const t2s = (h: number, m: number, s = 0) =>
@@ -111,6 +174,15 @@ function zonePeak(z: ZoneTransition, vpW: number): number {
 
 function easeInOut(t: number): number {
   return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+}
+
+function buildPanelPages(from: Evt, to: Evt, prevIdx: number, targetIdx: number): Evt[] {
+  const dir = targetIdx > prevIdx ? 1 : -1;
+  if (Math.abs(targetIdx - prevIdx) <= 1) {
+    return dir > 0 ? [from, to] : [to, from];
+  }
+  const bridge = EVENTS[prevIdx + dir];
+  return dir > 0 ? [from, bridge, to] : [to, bridge, from];
 }
 
 function transitionPx(centerSecs: number, vpW: number): number | null {
@@ -253,20 +325,19 @@ function fmtRelToShoot(time: Date): string {
   const diffMs   = time.getTime() - SHOOT_MS;
   const totalSec = Math.round(Math.abs(diffMs) / 1000);
   if (totalSec === 0) return "at the shooting";
-  const dir = diffMs < 0 ? "before" : "after";
-  if (totalSec < 60) return `${totalSec} second${totalSec === 1 ? "" : "s"} ${dir} the shooting`;
+  const suffix = diffMs < 0 ? "until the shooting" : "after the shooting";
+  if (totalSec < 60) return `${totalSec} sec ${suffix}`;
   const mins = Math.floor(totalSec / 60);
   const secs = totalSec % 60;
   if (mins < 60) {
-    return secs === 0
-      ? `${mins} minute${mins === 1 ? "" : "s"} ${dir} the shooting`
-      : `${mins} min ${secs} sec ${dir} the shooting`;
+    if (secs === 0) return `${mins} min ${suffix}`;
+    return `${mins} min ${secs} sec ${suffix}`;
   }
   const hrs  = Math.floor(mins / 60);
   const remM = mins % 60;
-  return remM === 0
-    ? `${hrs} hour${hrs === 1 ? "" : "s"} ${dir} the shooting`
-    : `${hrs} hr ${remM} min ${dir} the shooting`;
+  const hrLabel = hrs === 1 ? "1hr" : `${hrs}hrs`;
+  if (remM === 0) return `${hrLabel} ${suffix}`;
+  return `${hrLabel} ${remM}min ${suffix}`;
 }
 
 function fmtRange(start: Date, end?: Date) {
@@ -278,7 +349,11 @@ function fmtRange(start: Date, end?: Date) {
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
-export default function DayTimeline() {
+type DayTimelineProps = {
+  variant?: "embedded" | "page";
+};
+
+export default function DayTimeline({ variant = "embedded" }: DayTimelineProps) {
   const outerRef  = useRef<HTMLDivElement>(null);
   const scrubRef  = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -297,10 +372,29 @@ export default function DayTimeline() {
     portrait: false,
     wheelVel: 0,
     wheelRaf: 0,
+    panelTouch: false,
+    swipeX0: 0,
+    swipeY0: 0,
+    swipeLocked: false,
+  });
+
+  const navRef = useRef({
+    selectEvent: (_evt: Evt) => {},
+    selected: null as Evt | null,
+    panelAnimating: false,
   });
 
   const [view, setView]         = useState({ px: 0, off: 0, vpW: 0 });
   const [selected, setSelected] = useState<Evt | null>(null);
+  const [displayEvt, setDisplayEvt] = useState<Evt | null>(null);
+  const [panelPages, setPanelPages] = useState<Evt[]>([]);
+  const [panelProgress, setPanelProgress] = useState(0);
+  const [panelAnimating, setPanelAnimating] = useState(false);
+  const [panelVpW, setPanelVpW] = useState(0);
+  const panelProgressRef = useRef(0);
+  const panelRafRef = useRef(0);
+  const panelVpRef = useRef<HTMLDivElement>(null);
+  const sliderRef = useRef<HTMLDivElement>(null);
   const [portrait, setPortrait] = useState(false);
   const [cssFullscreen, setCssFullscreen] = useState(false);
   const [nativeFullscreen, setNativeFullscreen] = useState(false);
@@ -431,10 +525,9 @@ export default function DayTimeline() {
     const s = p.current;
     const startCenterSecs = (s.off + s.vpW / 2) / s.px;
     const startT = performance.now();
-    const dur = 800;
     const tick = (now: number) => {
-      const t = Math.min((now - startT) / dur, 1);
-      const ease = 1 - Math.pow(1 - t, 3);
+      const t = Math.min((now - startT) / SCROLL_ANIM_MS, 1);
+      const ease = easeInOut(t);
       const centerSecs = startCenterSecs + (secs - startCenterSecs) * ease;
       const tpx = transitionPx(centerSecs, s.vpW);
       if (tpx !== null) s.px = tpx;
@@ -447,6 +540,133 @@ export default function DayTimeline() {
     };
     p.current.animRaf = requestAnimationFrame(tick);
   }, [syncView]);
+
+  const animateRulerToEvent = useCallback((evt: Evt) => {
+    cancelAnimationFrame(p.current.animRaf);
+    cancelAnimationFrame(p.current.pxRaf);
+    cancelAnimationFrame(p.current.zoomRaf);
+    p.current.zoomRaf = 0;
+    const s = p.current;
+    const targetSecs = (evt.time.getTime() - START_MS) / 1000;
+    const startCenterSecs = (s.off + s.vpW / 2) / s.px;
+    const startT = performance.now();
+    const tick = (now: number) => {
+      const t = Math.min((now - startT) / SCROLL_ANIM_MS, 1);
+      const ease = easeInOut(t);
+      const centerSecs = startCenterSecs + (targetSecs - startCenterSecs) * ease;
+      const tpx = transitionPx(centerSecs, s.vpW);
+      if (tpx !== null) s.px = tpx;
+      const maxOff = Math.max(0, s.px * TOTAL_SECS - s.vpW);
+      s.off = Math.max(0, Math.min(centerSecs * s.px - s.vpW / 2, maxOff));
+      syncView();
+      if (t < 1) {
+        p.current.animRaf = requestAnimationFrame(tick);
+      }
+    };
+    p.current.animRaf = requestAnimationFrame(tick);
+  }, [syncView]);
+
+  const applyPanelTransform = useCallback((progress: number) => {
+    const w = panelVpRef.current?.offsetWidth ?? 0;
+    if (sliderRef.current && w > 0) {
+      sliderRef.current.style.transform = `translate3d(${-progress * w}px,0,0)`;
+    }
+  }, []);
+
+  const animatePanelPages = useCallback((
+    pages: Evt[],
+    prevIdx: number,
+    targetIdx: number,
+    duration: number,
+  ) => {
+    cancelAnimationFrame(panelRafRef.current);
+    const dir = targetIdx > prevIdx ? 1 : -1;
+    const start = dir > 0 ? 0 : pages.length - 1;
+    const end = dir > 0 ? pages.length - 1 : 0;
+
+    setPanelPages(pages);
+    panelProgressRef.current = start;
+    applyPanelTransform(start);
+    setPanelProgress(start);
+    setPanelAnimating(true);
+
+    const startT = performance.now();
+    const tick = (now: number) => {
+      const t = Math.min((now - startT) / duration, 1);
+      const progress = start + (end - start) * easeInOut(t);
+      panelProgressRef.current = progress;
+      applyPanelTransform(progress);
+
+      if (t < 1) {
+        panelRafRef.current = requestAnimationFrame(tick);
+      } else {
+        panelProgressRef.current = end;
+        applyPanelTransform(end);
+        setPanelPages([pages[end]]);
+        setPanelProgress(0);
+        setPanelAnimating(false);
+        setDisplayEvt(pages[end]);
+      }
+    };
+    panelRafRef.current = requestAnimationFrame(tick);
+  }, [applyPanelTransform]);
+
+  const deselectEvent = useCallback(() => {
+    cancelAnimationFrame(panelRafRef.current);
+    setSelected(null);
+    setDisplayEvt(null);
+    setPanelPages([]);
+    setPanelProgress(0);
+    setPanelAnimating(false);
+    panelProgressRef.current = 0;
+  }, []);
+
+  const selectEvent = useCallback((evt: Evt) => {
+    const prev = displayEvt ?? selected;
+    const prevIdx = prev ? EVENTS.findIndex(e => e.id === prev.id) : -1;
+    const targetIdx = EVENTS.findIndex(e => e.id === evt.id);
+
+    setSelected(evt);
+    animateRulerToEvent(evt);
+
+    if (p.current.portrait) {
+      cancelAnimationFrame(panelRafRef.current);
+      setDisplayEvt(evt);
+      setPanelPages([evt]);
+      setPanelAnimating(false);
+    } else if (prevIdx < 0 || prevIdx === targetIdx) {
+      cancelAnimationFrame(panelRafRef.current);
+      setDisplayEvt(evt);
+      setPanelPages([evt]);
+      setPanelProgress(0);
+      setPanelAnimating(false);
+      panelProgressRef.current = 0;
+      applyPanelTransform(0);
+    } else if (prev) {
+      const pages = buildPanelPages(prev, evt, prevIdx, targetIdx);
+      const skip = Math.abs(targetIdx - prevIdx) > 1;
+      setDisplayEvt(evt);
+      animatePanelPages(pages, prevIdx, targetIdx, skip ? SCROLL_ANIM_MS : PANEL_ADJACENT_MS);
+    }
+  }, [displayEvt, selected, animateRulerToEvent, animatePanelPages, applyPanelTransform]);
+
+  navRef.current = { selectEvent, selected, panelAnimating };
+
+  useEffect(() => {
+    const el = panelVpRef.current;
+    if (!el || !selected) return;
+    const measure = () => {
+      const w = el.offsetWidth;
+      if (w > 0) {
+        setPanelVpW(w);
+        applyPanelTransform(panelProgressRef.current);
+      }
+    };
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [selected, applyPanelTransform, portrait]);
 
   // ── Init + resize ────────────────────────────────────────────────────────────
 
@@ -463,10 +683,10 @@ export default function DayTimeline() {
       clampState();
       syncView();
     };
-    const dim = p.current.portrait ? el.clientHeight : el.clientWidth;
+    const dim = el.clientWidth;
     init(dim);
     const ro = new ResizeObserver(([e]) => {
-      init(p.current.portrait ? e.contentRect.height : e.contentRect.width);
+      init(e.contentRect.width);
     });
     ro.observe(el);
     const state = p.current;
@@ -481,22 +701,13 @@ export default function DayTimeline() {
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
     const dpr = window.devicePixelRatio || 1;
-    if (portrait) {
-      canvas.width  = V_STRIP_W * dpr;
-      canvas.height = view.vpW * dpr;
-      canvas.style.width  = `${V_STRIP_W}px`;
-      canvas.style.height = `${view.vpW}px`;
-      ctx.scale(dpr, dpr);
-      drawRulerVertical(ctx, view.vpW, view.px, view.off);
-    } else {
-      canvas.width  = view.vpW * dpr;
-      canvas.height = STRIP_H * dpr;
-      canvas.style.width  = `${view.vpW}px`;
-      canvas.style.height = `${STRIP_H}px`;
-      ctx.scale(dpr, dpr);
-      drawRuler(ctx, view.vpW, view.px, view.off);
-    }
-  }, [view, portrait]);
+    canvas.width  = view.vpW * dpr;
+    canvas.height = STRIP_H * dpr;
+    canvas.style.width  = `${view.vpW}px`;
+    canvas.style.height = `${STRIP_H}px`;
+    ctx.scale(dpr, dpr);
+    drawRuler(ctx, view.vpW, view.px, view.off);
+  }, [view]);
 
   // ── Non-passive wheel ────────────────────────────────────────────────────────
 
@@ -513,8 +724,7 @@ export default function DayTimeline() {
         triggerZoom(Math.max(MIN_PX, Math.min(effectiveMaxPx(centerSecs, s.vpW), s.px * factor)));
         return;
       }
-      const delta = s.portrait ? -e.deltaY
-        : Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
+      const delta = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
       s.wheelVel += delta * 3;
       s.wheelVel = Math.sign(s.wheelVel) * Math.min(Math.abs(s.wheelVel), 3000);
       if (s.wheelRaf) return;
@@ -554,7 +764,7 @@ export default function DayTimeline() {
     p.current.wheelVel = 0;
     const s = p.current;
     outerRef.current?.setPointerCapture(e.pointerId);
-    const coord = s.portrait ? e.clientY : e.clientX;
+    const coord = e.clientX;
     s.pendingPointerId = e.pointerId;
     s.dragX0 = coord; s.dragOff0 = s.off;
     s.velX = 0; s.lastX = coord; s.lastT = performance.now();
@@ -563,7 +773,7 @@ export default function DayTimeline() {
   const onPointerMove = useCallback((e: React.PointerEvent) => {
     if (e.pointerType === "touch") return;
     const s = p.current;
-    const coord = s.portrait ? e.clientY : e.clientX;
+    const coord = e.clientX;
     if (s.pendingPointerId === e.pointerId && !s.dragging) {
       if (Math.abs(coord - s.dragX0) > 5) {
         s.dragging = true;
@@ -596,6 +806,14 @@ export default function DayTimeline() {
 
   // ── Touch drag + pinch zoom ────────────────────────────────────────────────────
 
+  const PANEL_SWIPE_THRESHOLD = 50;
+
+  const isLandscapePanelTouch = (clientY: number) => {
+    const strip = scrubRef.current;
+    if (!strip || p.current.portrait) return false;
+    return clientY < strip.getBoundingClientRect().top;
+  };
+
   useEffect(() => {
     const el = outerRef.current;
     if (!el) return;
@@ -612,12 +830,23 @@ export default function DayTimeline() {
       if (e.touches.length === 1) {
         s.pinching = false;
         s.dragging = false;
-        const c0 = s.portrait ? e.touches[0].clientY : e.touches[0].clientX;
+        s.panelTouch = false;
+        s.swipeLocked = false;
+        const t = e.touches[0];
+        if (isLandscapePanelTouch(t.clientY)) {
+          s.panelTouch = true;
+          s.swipeX0 = t.clientX;
+          s.swipeY0 = t.clientY;
+          return;
+        }
+        const c0 = t.clientX;
         s.dragX0 = c0; s.dragOff0 = s.off;
         s.velX = 0; s.lastX = c0; s.lastT = performance.now();
       } else if (e.touches.length === 2) {
         e.preventDefault();
         s.dragging = false;
+        s.panelTouch = false;
+        s.swipeLocked = false;
         s.pinching = true;
         const t0 = e.touches[0], t1 = e.touches[1];
         s.pinchStartDist = Math.hypot(t1.clientX - t0.clientX, t1.clientY - t0.clientY);
@@ -644,9 +873,20 @@ export default function DayTimeline() {
         }
         return;
       }
+      if (s.panelTouch && e.touches.length === 1) {
+        const t = e.touches[0];
+        const dx = t.clientX - s.swipeX0;
+        const dy = t.clientY - s.swipeY0;
+        if (!s.swipeLocked) {
+          if (Math.abs(dx) > 10 && Math.abs(dx) > Math.abs(dy) * 1.2) s.swipeLocked = true;
+          else return;
+        }
+        e.preventDefault();
+        return;
+      }
       if (e.touches.length === 1) {
         const t = e.touches[0];
-        const coord = s.portrait ? t.clientY : t.clientX;
+        const coord = t.clientX;
         if (!s.dragging) {
           if (Math.abs(coord - s.dragX0) > 5) s.dragging = true;
           else return;
@@ -669,11 +909,26 @@ export default function DayTimeline() {
 
     const onTouchEnd = (e: TouchEvent) => {
       const s = p.current;
+      if (s.panelTouch) {
+        const { selectEvent: go, selected: cur, panelAnimating: animating } = navRef.current;
+        if (s.swipeLocked && cur && !animating && e.changedTouches.length > 0) {
+          const dx = e.changedTouches[0].clientX - s.swipeX0;
+          const idx = EVENTS.findIndex(ev => ev.id === cur.id);
+          if (dx <= -PANEL_SWIPE_THRESHOLD && idx >= 0 && idx < EVENTS.length - 1) {
+            go(EVENTS[idx + 1]);
+          } else if (dx >= PANEL_SWIPE_THRESHOLD && idx > 0) {
+            go(EVENTS[idx - 1]);
+          }
+        }
+        s.panelTouch = false;
+        s.swipeLocked = false;
+        return;
+      }
       if (s.pinching) {
         s.pinching = false;
         if (e.touches.length === 1) {
           const t = e.touches[0];
-          const ct = s.portrait ? t.clientY : t.clientX;
+          const ct = t.clientX;
           s.dragX0 = ct; s.dragOff0 = s.off;
           s.velX = 0; s.lastX = ct; s.lastT = performance.now();
         }
@@ -701,6 +956,7 @@ export default function DayTimeline() {
     cancelAnimationFrame(p.current.pxRaf);
     cancelAnimationFrame(p.current.zoomRaf);
     cancelAnimationFrame(p.current.wheelRaf);
+    cancelAnimationFrame(panelRafRef.current);
   }, []);
 
   // ── Marker layout ─────────────────────────────────────────────────────────────
@@ -712,7 +968,10 @@ export default function DayTimeline() {
     x: (evt.time.getTime() - START_MS) / 1000 * px - off,
   })).filter(({ x }) => x >= -(CARD_W + 20) && x <= vpW + CARD_W + 20);
 
-  const clusters = buildClusters(visible.map(({ evt, x }) => ({ evt, pos: x })));
+  const visibleSecs = px > 0 ? vpW / px : 0;
+  const zoomedOut = visibleSecs >= YOON_DMH_MERGE_SECS;
+
+  const clusters = buildClusters(visible.map(({ evt, x }) => ({ evt, pos: x })), zoomedOut);
   const clusterLanes: Record<string, number> = {};
   const laneLastX: number[] = [-CARD_W * 2];
   [...clusters].sort((a, b) => a.pos - b.pos).forEach(c => {
@@ -723,13 +982,6 @@ export default function DayTimeline() {
     else laneLastX[assigned] = c.pos;
     clusterLanes[c.lead.id] = assigned;
   });
-
-  const visibleV = EVENTS.map(evt => ({
-    evt,
-    y: (evt.time.getTime() - START_MS) / 1000 * px - off,
-  })).filter(({ y }) => y >= -20 && y <= vpW + 20);
-
-  const clustersV = buildClusters(visibleV.map(({ evt, y }) => ({ evt, pos: y })));
 
   const visibleDurations = EVENTS.filter((evt): evt is Evt & { endTime: Date } => !!evt.endTime)
     .map(evt => {
@@ -762,127 +1014,396 @@ export default function DayTimeline() {
   const labelStep = LABEL_STEPS.find(s => s * px >= 50) ?? 3600;
 
   const rulerLabels: { s: number; x: number; label: string }[] = [];
-  if (px > 0 && vpW > 0 && !portrait) {
+  if (px > 0 && vpW > 0) {
     const first = Math.floor((off / px) / labelStep) * labelStep;
     for (let s = first; s <= (off + vpW) / px + labelStep; s += labelStep) {
       if (s < 0 || s > TOTAL_SECS) continue;
       const x = s * px - off;
       if (x < -40 || x > vpW + 40) continue;
-      rulerLabels.push({ s, x, label: tickLabel(s) });
-    }
-  }
-
-  const rulerLabelsV: { s: number; y: number; label: string }[] = [];
-  if (px > 0 && vpW > 0 && portrait) {
-    const first = Math.floor((off / px) / labelStep) * labelStep;
-    for (let s = first; s <= (off + vpW) / px + labelStep; s += labelStep) {
-      if (s < 0 || s > TOTAL_SECS) continue;
-      const y = s * px - off;
-      if (y < -20 || y > vpW + 20) continue;
-      rulerLabelsV.push({ s, y, label: tickLabel(s) });
+      rulerLabels.push({
+        s,
+        x,
+        label: portrait ? fmtRelToShoot(new Date(START_MS + s * 1000)) : tickLabel(s),
+      });
     }
   }
 
   // ── Shared event panel ────────────────────────────────────────────────────────
 
-  const eventPanel = (
-    <div className="flex-1 relative overflow-hidden min-h-0">
-      {selected ? (
-        <div className="h-full flex flex-col">
-          <div
-            className="flex items-center gap-3 px-5 py-4 shrink-0 border-b border-white/10"
-            style={{ background: "#1A2235" }}
-          >
-            <div className="w-1 h-10 rounded-full shrink-0" style={{ backgroundColor: selected.color }} />
-            <div className="flex-1 min-w-0">
-              <p className="text-white font-semibold text-base leading-tight truncate">{selected.title}</p>
-              <p className="text-[11px] font-mono mt-0.5" style={{ color: selected.color }}>
-                {fmtRange(selected.time, selected.endTime)}
-              </p>
-            </div>
-            <button
-              onClick={() => setSelected(null)}
-              onPointerDown={(e) => e.stopPropagation()}
-              className="text-white/40 hover:text-white/80 transition-colors p-2 shrink-0 cursor-pointer"
-              aria-label="Close"
-            >
-              <svg className="w-4 h-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={2}>
-                <path d="M2 2l12 12M14 2L2 14" />
-              </svg>
-            </button>
+  const selectedIdx = selected ? EVENTS.findIndex(e => e.id === selected.id) : -1;
+  const hasPrev = selectedIdx > 0;
+  const hasNext = selectedIdx >= 0 && selectedIdx < EVENTS.length - 1;
+
+  const navBtnClass =
+    "absolute top-0 bottom-0 z-20 w-11 sm:w-12 flex items-center justify-center text-white/25 hover:text-white/70 disabled:opacity-20 disabled:pointer-events-none transition-colors cursor-pointer";
+
+  const idlePanel = (
+    <div className="h-full flex flex-col items-center justify-center p-5 sm:px-8 select-none text-center">
+      <h2 className="text-white font-semibold text-xl sm:text-2xl mb-3">
+        May 2nd, 2024 Timeline
+      </h2>
+      <p className="text-white/55 text-sm sm:text-[15px] leading-relaxed mb-8 max-w-lg">
+        Drag or scroll to pan · Ctrl+scroll to zoom · Click any event to read details
+      </p>
+      <div className="grid grid-cols-2 gap-x-6 gap-y-3 w-full max-w-65 mb-8">
+        <div className="flex justify-center">
+          <Image src="/icons/scroll.svg" alt="" width={200} height={200} className="w-1/2 aspect-square invert opacity-35" unoptimized />
+        </div>
+        <div className="flex items-center gap-1">
+          <div className="flex-1">
+            <Image src="/icons/ctrl.svg" alt="" width={200} height={200} className="w-full aspect-square invert opacity-35" unoptimized />
           </div>
-          <div className="flex-1 overflow-y-auto p-5">
-            <p className="text-white/70 text-[15px] leading-relaxed">{selected.text}</p>
+          <span className="text-white/20 text-xs shrink-0">+</span>
+          <div className="flex-1">
+            <Image src="/icons/scroll.svg" alt="" width={200} height={200} className="w-full aspect-square invert opacity-35" unoptimized />
           </div>
         </div>
-      ) : portrait ? (
-        /* Portrait idle: 2-column icon grid */
-        <div className="h-full flex items-center justify-center p-5 select-none">
-          <div className="grid grid-cols-2 gap-x-6 gap-y-3 w-full max-w-65">
-            {/* Row 1: top icons */}
-            <div className="flex justify-center">
-              <Image src="/icons/touchpan.svg" alt="" width={200} height={200} className="w-1/2 aspect-square invert opacity-35" unoptimized />
-            </div>
-            <div className="flex justify-center">
-              <Image src="/icons/touchzoom.svg" alt="" width={200} height={200} className="w-1/2 aspect-square invert opacity-35" unoptimized />
-            </div>
-            {/* Row 2: labels (midway between both icon rows) */}
-            <p className="text-center text-white/30 text-xs uppercase tracking-widest">Pan</p>
-            <p className="text-center text-white/30 text-xs uppercase tracking-widest">Zoom</p>
-            {/* Row 3: bottom icons */}
-            <div className="flex justify-center">
-              <Image src="/icons/scroll.svg" alt="" width={200} height={200} className="w-1/2 aspect-square invert opacity-35" unoptimized />
-            </div>
-            <div className="flex items-center gap-1">
-              <div className="flex-1">
-                <Image src="/icons/ctrl.svg" alt="" width={200} height={200} className="w-full aspect-square invert opacity-35" unoptimized />
-              </div>
-              <span className="text-white/20 text-xs shrink-0">+</span>
-              <div className="flex-1">
-                <Image src="/icons/scroll.svg" alt="" width={200} height={200} className="w-full aspect-square invert opacity-35" unoptimized />
-              </div>
-            </div>
-          </div>
+        <p className="text-center text-white/30 text-xs uppercase tracking-widest">Pan</p>
+        <p className="text-center text-white/30 text-xs uppercase tracking-widest">Zoom</p>
+        <div className="flex justify-center">
+          <Image
+            src={portrait ? "/icons/touchpan.svg" : "/icons/touchpanLR.svg"}
+            alt=""
+            width={200}
+            height={200}
+            className="w-1/2 aspect-square invert opacity-35"
+            unoptimized
+          />
         </div>
-      ) : (
-        /* Landscape idle: 2-column icon grid */
-        <div className="h-full flex items-center justify-center p-5 select-none">
-          <div className="grid grid-cols-2 gap-x-6 gap-y-3 w-full max-w-65">
-            {/* Row 1: top icons */}
-            <div className="flex justify-center">
-              <Image src="/icons/touchpanLR.svg" alt="" width={200} height={200} className="w-1/2 aspect-square invert opacity-35" unoptimized />
-            </div>
-            <div className="flex justify-center">
-              <Image src="/icons/touchzoomLR.svg" alt="" width={200} height={200} className="w-1/2 aspect-square invert opacity-35" unoptimized />
-            </div>
-            {/* Row 2: labels */}
-            <p className="text-center text-white/30 text-xs uppercase tracking-widest">Pan</p>
-            <p className="text-center text-white/30 text-xs uppercase tracking-widest">Zoom</p>
-            {/* Row 3: bottom icons */}
-            <div className="flex justify-center">
-              <Image src="/icons/scroll.svg" alt="" width={200} height={200} className="w-1/2 aspect-square invert opacity-35" unoptimized />
-            </div>
-            <div className="flex items-center gap-1">
-              <div className="flex-1">
-                <Image src="/icons/ctrl.svg" alt="" width={200} height={200} className="w-full aspect-square invert opacity-35" unoptimized />
-              </div>
-              <span className="text-white/20 text-xs shrink-0">+</span>
-              <div className="flex-1">
-                <Image src="/icons/scroll.svg" alt="" width={200} height={200} className="w-full aspect-square invert opacity-35" unoptimized />
-              </div>
-            </div>
-          </div>
+        <div className="flex justify-center">
+          <Image
+            src={portrait ? "/icons/touchzoom.svg" : "/icons/touchzoomLR.svg"}
+            alt=""
+            width={200}
+            height={200}
+            className="w-1/2 aspect-square invert opacity-35"
+            unoptimized
+          />
+        </div>
+      </div>
+      <p className="text-white/40 text-sm">
+        Select an event for detailed information
+      </p>
+    </div>
+  );
+
+  const renderEventMedia = (evt: Evt, isActive: boolean, compact = false) => (
+    <div className={`grid grid-cols-1 w-full ${compact ? "h-full" : "gap-4 max-w-md lg:max-w-lg"}`}>
+      {evt.videoUrl && (
+        <div className={`relative w-full bg-black/40 rounded-sm overflow-hidden shadow-lg ${
+          compact ? "h-full" : "aspect-video"
+        }`}>
+          {isActive ? (
+            <iframe
+              src={evt.videoUrl}
+              title={evt.title}
+              frameBorder="0"
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+              className="absolute inset-0 h-full w-full"
+            />
+          ) : (
+            <div className="absolute inset-0 bg-black/25" />
+          )}
+        </div>
+      )}
+      {evt.thumbnailUrl && !evt.videoUrl && (
+        <div className={`relative flex items-center justify-center w-full bg-black/20 rounded-sm overflow-hidden shadow-lg ${
+          compact ? "h-full p-1" : "max-h-[min(50vh,420px)] p-2"
+        }`}>
+          <Image
+            src={evt.thumbnailUrl}
+            alt=""
+            width={960}
+            height={720}
+            className={compact ? "max-h-full w-auto h-auto object-contain" : "max-h-[min(48vh,400px)] w-auto h-auto object-contain"}
+            unoptimized
+          />
         </div>
       )}
     </div>
   );
 
+  const renderEventContent = (evt: Evt, isActive: boolean) => (
+    <div className="h-full w-full min-h-0 flex flex-row">
+      <div className="min-w-0 flex flex-[1.15] items-center justify-center p-5 sm:p-8 md:p-10">
+        {renderEventMedia(evt, isActive)}
+      </div>
+
+      <div className="min-w-0 flex flex-[0.85] flex-col justify-center overflow-y-auto py-6 sm:py-8 pl-6 sm:pl-10 md:pl-12 pr-4 sm:pr-8">
+        <p className="font-mono text-sm text-white/50 mb-2">
+          {fmt12(evt.time)}
+          {evt.endTime ? ` – ${fmt12(evt.endTime)}` : ""}
+        </p>
+        <h2 className="font-serif text-xl sm:text-2xl font-bold text-white leading-snug mb-4">
+          {evt.title}
+        </h2>
+        <p className="text-white/70 text-[15px] leading-relaxed mb-5">
+          {evt.text}
+        </p>
+        <p className="text-sm font-medium" style={{ color: evt.color }}>
+          {fmtRelToShoot(evt.time)}
+        </p>
+      </div>
+    </div>
+  );
+
+  const portraitHint = (
+    <div className="flex flex-1 min-h-0 flex-col items-center justify-center px-5 bg-[#151b28] select-none text-center">
+      <p className="text-white/55 text-sm leading-relaxed mb-6">
+        Drag to pan · Pinch to zoom · Tap an event
+      </p>
+      <div className="flex gap-8">
+        <Image src="/icons/touchpanLR.svg" alt="" width={80} height={80} className="w-16 invert opacity-35" unoptimized />
+        <Image src="/icons/touchzoomLR.svg" alt="" width={80} height={80} className="w-16 invert opacity-35" unoptimized />
+      </div>
+    </div>
+  );
+
+  const mobileOverlay = selected && (
+    <div
+      className="fixed inset-0 z-[200] flex flex-col bg-[#151b28] touch-auto"
+      onPointerDown={(e) => e.stopPropagation()}
+    >
+      <button
+        type="button"
+        onClick={deselectEvent}
+        className="absolute top-3 right-3 z-10 flex h-10 w-10 items-center justify-center rounded-full bg-white/10 text-white/70 hover:text-white transition-colors cursor-pointer"
+        aria-label="Close"
+      >
+        <svg width="18" height="18" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+          <path d="M4 4l8 8M12 4l-8 8" />
+        </svg>
+      </button>
+      <div className="flex-1 min-h-0 overflow-y-auto flex flex-col justify-center px-5 py-12">
+        <div className="w-full text-left">
+          <div className="mb-5 w-full max-w-lg">
+            {renderEventMedia(selected, true)}
+          </div>
+          <h2 className="font-serif text-xl font-bold text-white leading-snug mb-3 max-w-lg">
+            {selected.title}
+          </h2>
+          <p className="font-mono text-sm text-white/50 mb-2 max-w-lg">
+            {fmt12(selected.time)}
+            {selected.endTime ? ` – ${fmt12(selected.endTime)}` : ""}
+          </p>
+          <p className="text-sm font-medium mb-5 max-w-lg" style={{ color: selected.color }}>
+            {fmtRelToShoot(selected.time)}
+          </p>
+          <p className="text-white/70 text-[15px] leading-relaxed max-w-lg">
+            {selected.text}
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+
+  const shownEvt = displayEvt ?? selected;
+  const carouselPages = panelPages.length > 0 ? panelPages : (shownEvt ? [shownEvt] : []);
+  const panelTransform = `translate3d(${-panelProgress * panelVpW}px,0,0)`;
+
+  const eventPanel = (
+    <div className="flex-1 relative overflow-hidden min-h-0 bg-[#151b28]">
+      {selected ? (
+          <>
+            <button
+              type="button"
+              onPointerDown={(e) => e.stopPropagation()}
+              onClick={() => hasPrev && selectEvent(EVENTS[selectedIdx - 1])}
+              disabled={!hasPrev}
+              className={`${navBtnClass} left-0`}
+              aria-label="Previous event"
+            >
+              <svg width="20" height="20" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                <path d="M10 3L5 8l5 5" />
+              </svg>
+            </button>
+            <button
+              type="button"
+              onPointerDown={(e) => e.stopPropagation()}
+              onClick={() => hasNext && selectEvent(EVENTS[selectedIdx + 1])}
+              disabled={!hasNext}
+              className={`${navBtnClass} right-0`}
+              aria-label="Next event"
+            >
+              <svg width="20" height="20" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                <path d="M6 3l5 5-5 5" />
+              </svg>
+            </button>
+
+            <div ref={panelVpRef} className="absolute inset-x-11 sm:inset-x-12 inset-y-0 overflow-hidden">
+              {shownEvt && panelVpW > 0 && (
+                <div
+                  ref={sliderRef}
+                  className="absolute top-0 left-0 h-full will-change-transform"
+                  style={panelAnimating ? undefined : { transform: panelTransform }}
+                >
+                  {carouselPages.map((evt, i) => (
+                    <div
+                      key={`${evt.id}-${i}`}
+                      className="absolute top-0 h-full"
+                      style={{ width: panelVpW, left: i * panelVpW }}
+                    >
+                      {renderEventContent(evt, !panelAnimating && evt.id === selected?.id)}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </>
+        ) : idlePanel}
+    </div>
+  );
+
+  const timelineStrip = (
+    <div
+      ref={scrubRef}
+      className="relative shrink-0 border-t border-white/10 overflow-hidden"
+      style={{ height: STRIP_H, background: "#0e1420" }}
+    >
+      <canvas ref={canvasRef} className="absolute inset-0 pointer-events-none" />
+      <div className="absolute inset-y-0 pointer-events-none" style={{ left: zone2X0, width: Math.max(0, zone2X1 - zone2X0), background: "rgba(255,68,68,0.08)", borderLeft: "1px solid rgba(255,68,68,0.25)", borderRight: "1px solid rgba(255,68,68,0.25)" }} />
+      <div className="absolute inset-y-0 pointer-events-none" style={{ left: zoneX0, width: Math.max(0, zoneX1 - zoneX0), background: "rgba(255,68,68,0.08)", borderLeft: "1px solid rgba(255,68,68,0.25)", borderRight: "1px solid rgba(255,68,68,0.25)" }} />
+      {px > 0 && visibleDurations.map(({ evt, start, end }) => {
+        const isSel = selected?.id === evt.id;
+        return (
+        <div
+          key={`dur-${evt.id}`}
+          className="absolute pointer-events-none"
+          style={{
+            left: start,
+            top: LINE_Y - DURATION_H / 2,
+            width: Math.max(0, end - start),
+            height: DURATION_H,
+            backgroundColor: isSel ? evt.color : `${evt.color}99`,
+            zIndex: isSel ? 1 : 0,
+          }}
+        />
+      );})}
+      {px > 0 && clusters.map((cluster) => {
+        const { lead, pos: x, r, evts } = cluster;
+        const lane = clusterLanes[lead.id] ?? 0;
+        const isSel = evts.some(e => selected?.id === e.id);
+        const cardBot = LINE_Y - DOT_R - 6 - lane * LANE_H;
+        const cardTop = cardBot - CARD_H;
+        const stemH   = Math.max(0, LINE_Y - DOT_R - 4 - cardBot);
+        return (
+          <Fragment key={lead.id}>
+            <button
+              className="absolute focus:outline-none cursor-pointer"
+              onPointerDown={(e) => e.stopPropagation()}
+              style={{
+                left: x,
+                top: Math.max(0, cardTop - 2),
+                height: CARD_H + 6,
+                zIndex: isSel ? 2 : 1,
+                overflow: "visible",
+                transition: "top 0.33s ease-out",
+                animation: "tl-card-in 0.2s ease-out forwards",
+              }}
+              onClick={(e) => {
+                e.stopPropagation();
+                if (!isSel) {
+                  selectEvent(lead);
+                } else {
+                  const curIdx = evts.findIndex(ev => ev.id === selected?.id);
+                  const next = evts[(curIdx + 1) % evts.length];
+                  if (next.id === selected?.id) deselectEvent();
+                  else selectEvent(next);
+                }
+              }}
+            >
+              <div
+                className="flex items-center overflow-hidden transition-all duration-150"
+                style={{
+                  position: "absolute",
+                  top: 2, left: 0, height: CARD_H,
+                  minWidth: CARD_W, maxWidth: CARD_W_MAX,
+                  width: "max-content",
+                  borderRadius: 5,
+                  paddingLeft: 8, paddingRight: 6,
+                  background: isSel ? `${lead.color}1a` : "rgba(20,28,45,0.95)",
+                  border: `1px solid ${lead.color}${isSel ? "55" : "2a"}`,
+                  borderLeft: `3px solid ${lead.color}${isSel ? "cc" : "88"}`,
+                  boxShadow: isSel ? `0 0 12px ${lead.color}22` : "none",
+                }}
+              >
+                <span
+                  className="text-[10px] leading-none whitespace-nowrap transition-colors duration-150"
+                  style={{ color: isSel ? "rgba(255,255,255,0.95)" : "rgba(255,255,255,0.6)" }}
+                >
+                  {lead.title}
+                </span>
+              </div>
+              {stemH > 0 && (
+                <div
+                  className="absolute pointer-events-none"
+                  style={{
+                    left: DOT_R - 0.5, top: CARD_H + 4,
+                    width: 1, height: stemH,
+                    background: `linear-gradient(to bottom, ${lead.color}55, ${lead.color}1a)`,
+                  }}
+                />
+              )}
+            </button>
+            <div
+              className="absolute pointer-events-none rounded-full"
+              style={{
+                left: x + DOT_R - r,
+                top: LINE_Y - r,
+                width: r * 2,
+                height: r * 2,
+                background: isSel ? lead.color : `${lead.color}99`,
+                boxShadow: isSel ? `0 0 10px 3px ${lead.color}44` : "none",
+                transition: "width 150ms, height 150ms, background 150ms, box-shadow 150ms",
+                zIndex: isSel ? 3 : 2,
+              }}
+            />
+          </Fragment>
+        );
+      })}
+      {rulerLabels.map(({ s, x, label }) => (
+        <span
+          key={s}
+          className="absolute font-mono pointer-events-none"
+          style={{
+            left: x,
+            top: LINE_Y + 18,
+            transform: "translateX(-50%)",
+            fontSize: portrait ? 9 : 11,
+            color: "rgba(255,255,255,0.45)",
+            animation: "tl-fade-in 0.25s ease-out forwards",
+            whiteSpace: "nowrap",
+            maxWidth: portrait ? 100 : undefined,
+            overflow: portrait ? "hidden" : undefined,
+            textOverflow: portrait ? "ellipsis" : undefined,
+          }}
+        >
+          {label}
+        </span>
+      ))}
+      <span className="absolute bottom-1.5 right-2 font-mono pointer-events-none select-none"
+        style={{ fontSize: 10, color: "rgba(255,255,255,0.25)" }}>
+        {zoomLabel}
+      </span>
+    </div>
+  );
+
   // ── Render ────────────────────────────────────────────────────────────────────
+
+  const sizeClass = cssFullscreen
+    ? ""
+    : variant === "page"
+      ? portrait
+        ? "h-[calc(100dvh-4rem)] shrink-0 min-h-0 w-full"
+        : "w-full aspect-video"
+      : portrait
+        ? "h-dvh"
+        : "aspect-video";
 
   return (
     <div
       ref={outerRef}
-      className={`relative flex ${portrait ? "flex-row" : "flex-col"} ${fullscreen ? "rounded-none" : "rounded-xl"} overflow-hidden border border-white/10 cursor-grab active:cursor-grabbing select-none touch-none ${cssFullscreen ? "" : portrait ? "h-dvh" : "aspect-video"}`}
+      className={`relative flex flex-col ${fullscreen ? "rounded-none" : "rounded-xl"} overflow-hidden border border-white/10 cursor-grab active:cursor-grabbing select-none touch-none ${sizeClass}`}
       style={{ background: "#111827", ...(cssFullscreen ? { position: "fixed" as const, top: 0, right: 0, bottom: 0, left: 0, zIndex: 9999 } : {}) }}
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
@@ -907,223 +1428,14 @@ export default function DayTimeline() {
       </button>
       {portrait ? (
         <>
-          {/* ── Portrait: vertical strip on left ── */}
-          <div
-            ref={scrubRef}
-            className="relative shrink-0 border-r border-white/10 overflow-hidden"
-            style={{ width: V_STRIP_W, background: "#0e1420" }}
-          >
-            <canvas ref={canvasRef} className="absolute inset-0 pointer-events-none" />
-            <div className="absolute inset-x-0 pointer-events-none" style={{ top: zone2X0, height: Math.max(0, zone2X1 - zone2X0), background: "rgba(255,68,68,0.08)", borderTop: "1px solid rgba(255,68,68,0.25)", borderBottom: "1px solid rgba(255,68,68,0.25)" }} />
-            <div className="absolute inset-x-0 pointer-events-none" style={{ top: zoneX0, height: Math.max(0, zoneX1 - zoneX0), background: "rgba(255,68,68,0.08)", borderTop: "1px solid rgba(255,68,68,0.25)", borderBottom: "1px solid rgba(255,68,68,0.25)" }} />
-            {px > 0 && visibleDurations.map(({ evt, start, end }) => {
-              const isSel = selected?.id === evt.id;
-              return (
-              <div
-                key={`dur-${evt.id}`}
-                className="absolute pointer-events-none"
-                style={{
-                  left: V_LINE_X - DURATION_H / 2,
-                  top: start,
-                  width: DURATION_H,
-                  height: Math.max(0, end - start),
-                  backgroundColor: isSel ? evt.color : `${evt.color}99`,
-                  zIndex: isSel ? 1 : 0,
-                }}
-              />
-            );})}
-            {px > 0 && clustersV.map((cluster) => {
-              const { lead, pos: y, r, evts } = cluster;
-              const isSel = evts.some(e => selected?.id === e.id);
-              return (
-                <button
-                  key={lead.id}
-                  className="absolute focus:outline-none rounded-full cursor-pointer"
-                  onPointerDown={(e) => e.stopPropagation()}
-                  style={{
-                    left: V_LINE_X - r,
-                    top: y - r,
-                    width: r * 2,
-                    height: r * 2,
-                    background: isSel ? lead.color : `${lead.color}99`,
-                    boxShadow: isSel ? `0 0 10px 3px ${lead.color}44` : "none",
-                    zIndex: isSel ? 2 : 1,
-                    animation: "tl-dot-in 0.2s ease-out forwards",
-                    transition: "width 150ms, height 150ms, background 150ms, box-shadow 150ms",
-                  }}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    if (!isSel) {
-                      setSelected(lead);
-                      scrollToSecs((lead.time.getTime() - START_MS) / 1000);
-                    } else {
-                      const curIdx = evts.findIndex(ev => ev.id === selected?.id);
-                      const next = evts[(curIdx + 1) % evts.length];
-                      if (next.id === selected?.id) setSelected(null);
-                      else { setSelected(next); scrollToSecs((next.time.getTime() - START_MS) / 1000); }
-                    }
-                  }}
-                />
-              );
-            })}
-            {rulerLabelsV.map(({ s, y, label }) => (
-              <span
-                key={s}
-                className="absolute font-mono pointer-events-none"
-                style={{
-                  top: y,
-                  left: V_LINE_X + 10,
-                  transform: "translateY(-50%)",
-                  fontSize: 11,
-                  letterSpacing: "-0.4px",
-                  color: "rgba(255,255,255,0.45)",
-                  animation: "tl-fade-in 0.25s ease-out forwards",
-                  whiteSpace: "nowrap",
-                }}
-              >
-                {label}
-              </span>
-            ))}
-            <span className="absolute bottom-2 left-0 right-0 text-center font-mono pointer-events-none select-none"
-              style={{ fontSize: 9, color: "rgba(255,255,255,0.25)" }}>
-              {zoomLabel}
-            </span>
-          </div>
-          {eventPanel}
+          {portraitHint}
+          {timelineStrip}
+          {mobileOverlay}
         </>
       ) : (
         <>
           {eventPanel}
-          {/* ── Landscape: horizontal strip on bottom ── */}
-          <div
-            ref={scrubRef}
-            className="relative shrink-0 border-t border-white/10 overflow-hidden"
-            style={{ height: STRIP_H, background: "#0e1420" }}
-          >
-            <canvas ref={canvasRef} className="absolute inset-0 pointer-events-none" />
-            <div className="absolute inset-y-0 pointer-events-none" style={{ left: zone2X0, width: Math.max(0, zone2X1 - zone2X0), background: "rgba(255,68,68,0.08)", borderLeft: "1px solid rgba(255,68,68,0.25)", borderRight: "1px solid rgba(255,68,68,0.25)" }} />
-            <div className="absolute inset-y-0 pointer-events-none" style={{ left: zoneX0, width: Math.max(0, zoneX1 - zoneX0), background: "rgba(255,68,68,0.08)", borderLeft: "1px solid rgba(255,68,68,0.25)", borderRight: "1px solid rgba(255,68,68,0.25)" }} />
-            {px > 0 && visibleDurations.map(({ evt, start, end }) => {
-              const isSel = selected?.id === evt.id;
-              return (
-              <div
-                key={`dur-${evt.id}`}
-                className="absolute pointer-events-none"
-                style={{
-                  left: start,
-                  top: LINE_Y - DURATION_H / 2,
-                  width: Math.max(0, end - start),
-                  height: DURATION_H,
-                  backgroundColor: isSel ? evt.color : `${evt.color}99`,
-                  zIndex: isSel ? 1 : 0,
-                }}
-              />
-            );})}
-            {px > 0 && clusters.map((cluster) => {
-              const { lead, pos: x, r, evts } = cluster;
-              const lane = clusterLanes[lead.id] ?? 0;
-              const isSel = evts.some(e => selected?.id === e.id);
-              const cardBot = LINE_Y - DOT_R - 6 - lane * LANE_H;
-              const cardTop = cardBot - CARD_H;
-              const stemH   = Math.max(0, LINE_Y - DOT_R - 4 - cardBot);
-              return (
-                <Fragment key={lead.id}>
-                  <button
-                    className="absolute focus:outline-none cursor-pointer"
-                    onPointerDown={(e) => e.stopPropagation()}
-                    style={{
-                      left: x,
-                      top: Math.max(0, cardTop - 2),
-                      height: CARD_H + 6,
-                      zIndex: isSel ? 2 : 1,
-                      overflow: "visible",
-                      transition: "top 0.33s ease-out",
-                      animation: "tl-card-in 0.2s ease-out forwards",
-                    }}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      if (!isSel) {
-                        setSelected(lead);
-                        scrollToSecs((lead.time.getTime() - START_MS) / 1000);
-                      } else {
-                        const curIdx = evts.findIndex(ev => ev.id === selected?.id);
-                        const next = evts[(curIdx + 1) % evts.length];
-                        if (next.id === selected?.id) setSelected(null);
-                        else { setSelected(next); scrollToSecs((next.time.getTime() - START_MS) / 1000); }
-                      }
-                    }}
-                  >
-                    <div
-                      className="flex items-center overflow-hidden transition-all duration-150"
-                      style={{
-                        position: "absolute",
-                        top: 2, left: 0, height: CARD_H,
-                        minWidth: CARD_W, maxWidth: CARD_W_MAX,
-                        width: "max-content",
-                        borderRadius: 5,
-                        paddingLeft: 8, paddingRight: 6,
-                        background: isSel ? `${lead.color}1a` : "rgba(20,28,45,0.95)",
-                        border: `1px solid ${lead.color}${isSel ? "55" : "2a"}`,
-                        borderLeft: `3px solid ${lead.color}${isSel ? "cc" : "88"}`,
-                        boxShadow: isSel ? `0 0 12px ${lead.color}22` : "none",
-                      }}
-                    >
-                      <span
-                        className="text-[10px] leading-none whitespace-nowrap transition-colors duration-150"
-                        style={{ color: isSel ? "rgba(255,255,255,0.95)" : "rgba(255,255,255,0.6)" }}
-                      >
-                        {lead.title}
-                      </span>
-                    </div>
-                    {stemH > 0 && (
-                      <div
-                        className="absolute pointer-events-none"
-                        style={{
-                          left: DOT_R - 0.5, top: CARD_H + 4,
-                          width: 1, height: stemH,
-                          background: `linear-gradient(to bottom, ${lead.color}55, ${lead.color}1a)`,
-                        }}
-                      />
-                    )}
-                  </button>
-                  <div
-                    className="absolute pointer-events-none rounded-full"
-                    style={{
-                      left: x + DOT_R - r,
-                      top: LINE_Y - r,
-                      width: r * 2,
-                      height: r * 2,
-                      background: isSel ? lead.color : `${lead.color}99`,
-                      boxShadow: isSel ? `0 0 10px 3px ${lead.color}44` : "none",
-                      transition: "width 150ms, height 150ms, background 150ms, box-shadow 150ms",
-                      zIndex: isSel ? 3 : 2,
-                    }}
-                  />
-                </Fragment>
-              );
-            })}
-            {rulerLabels.map(({ s, x, label }) => (
-              <span
-                key={s}
-                className="absolute font-mono pointer-events-none"
-                style={{
-                  left: x,
-                  top: LINE_Y + 18,
-                  transform: "translateX(-50%)",
-                  fontSize: 11,
-                  color: "rgba(255,255,255,0.45)",
-                  animation: "tl-fade-in 0.25s ease-out forwards",
-                  whiteSpace: "nowrap",
-                }}
-              >
-                {label}
-              </span>
-            ))}
-            <span className="absolute bottom-1.5 right-2 font-mono pointer-events-none select-none"
-              style={{ fontSize: 10, color: "rgba(255,255,255,0.25)" }}>
-              {zoomLabel}
-            </span>
-          </div>
+          {timelineStrip}
         </>
       )}
     </div>
