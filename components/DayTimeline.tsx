@@ -67,6 +67,7 @@ const CARD_W    = 112;
 const CARD_W_MAX = 220;
 const CARD_H    = 26;
 const LANE_H    = 34;
+const PORTRAIT_TAB_H = 44;
 const MAX_LANES = 3;
 
 const MIN_PX    = 80 / 615;
@@ -154,6 +155,27 @@ function effectiveMaxPx(centerSecs: number, vpW: number): number {
   return MAX_PX;
 }
 
+/** Derive px/off from centerSecs — pan always moves time forward/back, never fights zoom morph. */
+function syncFromCenter(
+  s: { px: number; off: number; vpW: number; centerSecs: number },
+  allowOvershoot = false,
+) {
+  if (s.px <= 0 || s.vpW <= 0) return;
+  const anchor = s.vpW / 2;
+  s.centerSecs = Math.max(0, Math.min(TOTAL_SECS, s.centerSecs));
+  const tpx = transitionPx(s.centerSecs, s.vpW);
+  if (tpx !== null) s.px = tpx;
+  else s.px = Math.max(MIN_PX, Math.min(effectiveMaxPx(s.centerSecs, s.vpW), s.px));
+  const maxOff = Math.max(0, s.px * TOTAL_SECS - s.vpW);
+  const nextOff = s.centerSecs * s.px - anchor;
+  if (allowOvershoot) {
+    s.off = Math.max(-80, Math.min(nextOff, maxOff + 80));
+  } else {
+    s.off = Math.max(0, Math.min(nextOff, maxOff));
+    if (s.off !== nextOff) s.centerSecs = (s.off + anchor) / s.px;
+  }
+}
+
 // ── Canvas ruler ──────────────────────────────────────────────────────────────
 
 function getIntervals(px: number): [number, number] {
@@ -178,6 +200,86 @@ function tickLabel(secs: number): string {
   if (m !== 0) return `${h}:${String(m).padStart(2, "0")}`;
   return `${h} ${ap}`;
 }
+
+const RULER_LABEL_STEPS = [3600, 1800, 900, 300, 60, 30, 15, 5, 1];
+const RULER_LABEL_MIN_PX = 36;
+const RULER_LABEL_MAX_COUNT = 12;
+const RULER_LABEL_EDGE = 8;
+
+function countRulerLabels(
+  px: number,
+  vpW: number,
+  off: number,
+  step: number,
+): number {
+  if (px <= 0 || vpW <= 0 || step <= 0) return 0;
+  const visEnd = (off + vpW) / px;
+  const first = Math.floor((off / px) / step) * step;
+  let count = 0;
+  for (let s = first; s <= visEnd + step; s += step) {
+    if (s < 0 || s > TOTAL_SECS) continue;
+    const pos = s * px - off;
+    if (pos < -RULER_LABEL_EDGE || pos > vpW + RULER_LABEL_EDGE) continue;
+    count++;
+  }
+  return count;
+}
+
+/** Pick spacing so at least two labels are actually visible (after edge culling). */
+function rulerLabelStep(px: number, vpW: number, off: number): number {
+  if (px <= 0 || vpW <= 0) return 3600;
+
+  let fallback = RULER_LABEL_STEPS[0];
+  let best: number | null = null;
+
+  for (const step of RULER_LABEL_STEPS) {
+    if (step * px < RULER_LABEL_MIN_PX) continue;
+    const count = countRulerLabels(px, vpW, off, step);
+    if (count < 2) continue;
+    fallback = step;
+    if (count <= RULER_LABEL_MAX_COUNT) best = step;
+  }
+
+  return best ?? fallback;
+}
+
+function buildRulerLabels(
+  px: number,
+  vpW: number,
+  off: number,
+  step: number,
+): { s: number; pos: number; label: string }[] {
+  if (px <= 0 || vpW <= 0) return [];
+  const labels: { s: number; pos: number; label: string }[] = [];
+  const visEnd = (off + vpW) / px;
+  const first = Math.floor((off / px) / step) * step;
+  for (let s = first; s <= visEnd + step; s += step) {
+    if (s < 0 || s > TOTAL_SECS) continue;
+    const pos = s * px - off;
+    if (pos < -RULER_LABEL_EDGE || pos > vpW + RULER_LABEL_EDGE) continue;
+    labels.push({ s, pos, label: tickLabel(s) });
+  }
+
+  if (labels.length >= 2) return labels;
+
+  const centerS = Math.max(0, Math.min(TOTAL_SECS, (off + vpW / 2) / px));
+  const s0 = Math.floor(centerS / step) * step;
+  const extras = s0 === centerS ? [s0, s0 + step] : [s0, s0 + step];
+  for (const s of extras) {
+    if (s < 0 || s > TOTAL_SECS) continue;
+    if (labels.some(l => l.s === s)) continue;
+    labels.push({ s, pos: s * px - off, label: tickLabel(s) });
+  }
+
+  labels.sort((a, b) => a.s - b.s);
+  return labels;
+}
+
+/** Grab-pan: content follows finger. Portrait wheel uses inverted deltaY to match. */
+const panDelta = (portrait: boolean, e: WheelEvent) =>
+  portrait
+    ? -e.deltaY
+    : Math.abs(e.deltaX) > Math.abs(e.deltaY) ? -e.deltaX : e.deltaY;
 
 const RULER_TICKS = [
   { s: 1,    h: 3,  op: 0.15, w: 0.5 },
@@ -284,8 +386,8 @@ export default function DayTimeline() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   const p = useRef({
-    px: 0, off: 0, vpW: 0, touchFling: false,
-    dragging: false, pendingPointerId: -1, dragX0: 0, dragOff0: 0,
+    px: 0, off: 0, vpW: 0, centerSecs: 0, touchFling: false,
+    dragging: false, pendingPointerId: -1, dragX0: 0, dragStartCenterSecs: 0, dragAccum: 0,
     velX: 0, lastX: 0, lastT: 0,
     animRaf: 0,
     pxRaf: 0,
@@ -342,13 +444,7 @@ export default function DayTimeline() {
 
 
   const clampState = useCallback((allowOvershoot = false) => {
-    const s = p.current;
-    const centerSecs = s.px > 0 ? (s.off + s.vpW / 2) / s.px : 0;
-    const prevPx = s.px;
-    s.px = Math.max(MIN_PX, Math.min(effectiveMaxPx(centerSecs, s.vpW), s.px));
-    if (s.px !== prevPx) s.off = centerSecs * s.px - s.vpW / 2;
-    const maxOff = Math.max(0, s.px * TOTAL_SECS - s.vpW);
-    if (!allowOvershoot) s.off = Math.max(0, Math.min(s.off, maxOff));
+    syncFromCenter(p.current, allowOvershoot);
   }, []);
 
   const triggerZoom = useCallback((targetPx: number) => {
@@ -363,10 +459,8 @@ export default function DayTimeline() {
       const cx = s.vpW / 2;
       const prevPx = s.px;
       s.px = s.zoomStartPx + (s.zoomTargetPx - s.zoomStartPx) * ease;
-      const centerSecs = prevPx > 0 ? (s.off + cx) / prevPx : 0;
-      s.off = centerSecs * s.px - cx;
-      const maxOff = Math.max(0, s.px * TOTAL_SECS - s.vpW);
-      s.off = Math.max(0, Math.min(s.off, maxOff));
+      if (prevPx > 0) s.centerSecs = (s.off + cx) / prevPx;
+      syncFromCenter(s);
       syncView();
       if (progress < 1) {
         s.zoomRaf = requestAnimationFrame(tick);
@@ -405,16 +499,13 @@ export default function DayTimeline() {
         } else {
           vel *= s.touchFling ? Math.pow(0.05, subDt) : Math.pow(0.0001, subDt);
         }
-        s.off += vel * subDt;
-        const tcx = s.vpW / 2;
-        const tcs = (s.off + tcx) / s.px;
-        const tpx = transitionPx(tcs, s.vpW);
-        if (tpx !== null) { s.px = tpx; s.off = tcs * s.px - tcx; }
+        s.centerSecs += vel * subDt / s.px;
+        syncFromCenter(s, true);
       }
       syncView();
 
       if (Math.abs(vel) < 1 && s.off >= -0.5 && s.off <= maxOff + 0.5) {
-        s.off = Math.max(0, Math.min(s.off, maxOff));
+        syncFromCenter(s);
         syncView();
         return;
       }
@@ -429,17 +520,14 @@ export default function DayTimeline() {
     cancelAnimationFrame(p.current.zoomRaf);
     p.current.zoomRaf = 0;
     const s = p.current;
-    const startCenterSecs = (s.off + s.vpW / 2) / s.px;
+    const startCenterSecs = s.centerSecs;
     const startT = performance.now();
     const dur = 800;
     const tick = (now: number) => {
       const t = Math.min((now - startT) / dur, 1);
       const ease = 1 - Math.pow(1 - t, 3);
-      const centerSecs = startCenterSecs + (secs - startCenterSecs) * ease;
-      const tpx = transitionPx(centerSecs, s.vpW);
-      if (tpx !== null) s.px = tpx;
-      const maxOff = Math.max(0, s.px * TOTAL_SECS - s.vpW);
-      s.off = Math.max(0, Math.min(centerSecs * s.px - s.vpW / 2, maxOff));
+      s.centerSecs = startCenterSecs + (secs - startCenterSecs) * ease;
+      syncFromCenter(s);
       syncView();
       if (t < 1) {
         p.current.animRaf = requestAnimationFrame(tick);
@@ -459,6 +547,7 @@ export default function DayTimeline() {
         const minPx = Math.max(MIN_PX, w / TOTAL_SECS);
         p.current.px = minPx;
         p.current.off = t2s(9, 30) * minPx - w / 2;
+        p.current.centerSecs = t2s(9, 30);
       }
       clampState();
       syncView();
@@ -498,8 +587,6 @@ export default function DayTimeline() {
     }
   }, [view, portrait]);
 
-  // ── Non-passive wheel ────────────────────────────────────────────────────────
-
   useEffect(() => {
     const el = outerRef.current;
     if (!el) return;
@@ -513,8 +600,7 @@ export default function DayTimeline() {
         triggerZoom(Math.max(MIN_PX, Math.min(effectiveMaxPx(centerSecs, s.vpW), s.px * factor)));
         return;
       }
-      const delta = s.portrait ? -e.deltaY
-        : Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
+      const delta = panDelta(s.portrait, e);
       s.wheelVel += delta * 3;
       s.wheelVel = Math.sign(s.wheelVel) * Math.min(Math.abs(s.wheelVel), 3000);
       if (s.wheelRaf) return;
@@ -523,14 +609,9 @@ export default function DayTimeline() {
         if (lastT < 0) { lastT = now; s.wheelRaf = requestAnimationFrame(tick); return; }
         const dt = Math.min((now - lastT) / 1000, 0.05);
         lastT = now;
-        s.off += s.wheelVel * dt;
+        s.centerSecs += s.wheelVel * dt / s.px;
         s.wheelVel *= Math.pow(0.04, dt);
-        const maxOff = Math.max(0, s.px * TOTAL_SECS - s.vpW);
-        s.off = Math.max(0, Math.min(s.off, maxOff));
-        const tcx = s.vpW / 2;
-        const tcs = (s.off + tcx) / s.px;
-        const tpx = transitionPx(tcs, s.vpW);
-        if (tpx !== null) { s.px = tpx; s.off = tcs * s.px - tcx; }
+        syncFromCenter(s);
         syncView();
         if (Math.abs(s.wheelVel) < 1) { s.wheelRaf = 0; return; }
         s.wheelRaf = requestAnimationFrame(tick);
@@ -556,7 +637,7 @@ export default function DayTimeline() {
     outerRef.current?.setPointerCapture(e.pointerId);
     const coord = s.portrait ? e.clientY : e.clientX;
     s.pendingPointerId = e.pointerId;
-    s.dragX0 = coord; s.dragOff0 = s.off;
+    s.dragX0 = coord; s.dragStartCenterSecs = s.centerSecs; s.dragAccum = 0;
     s.velX = 0; s.lastX = coord; s.lastT = performance.now();
   }, []);
 
@@ -574,13 +655,10 @@ export default function DayTimeline() {
     const now = performance.now();
     const dt  = now - s.lastT;
     if (dt > 0 && dt < 80) s.velX = (s.lastX - coord) / dt * 1000;
+    s.dragAccum += coord - s.lastX;
     s.lastX = coord; s.lastT = now;
-    const maxOff = s.px * TOTAL_SECS - s.vpW;
-    s.off = Math.max(-80, Math.min(s.dragOff0 - (coord - s.dragX0), maxOff + 80));
-    const tcx = s.vpW / 2;
-    const tcs = (s.off + tcx) / s.px;
-    const tpx = transitionPx(tcs, s.vpW);
-    if (tpx !== null) { s.px = tpx; s.off = tcs * s.px - tcx; s.dragOff0 = s.off + (coord - s.dragX0); }
+    s.centerSecs = s.dragStartCenterSecs - s.dragAccum / s.px;
+    syncFromCenter(s, true);
     syncView();
   }, [syncView]);
 
@@ -613,7 +691,7 @@ export default function DayTimeline() {
         s.pinching = false;
         s.dragging = false;
         const c0 = s.portrait ? e.touches[0].clientY : e.touches[0].clientX;
-        s.dragX0 = c0; s.dragOff0 = s.off;
+        s.dragX0 = c0; s.dragStartCenterSecs = s.centerSecs; s.dragAccum = 0;
         s.velX = 0; s.lastX = c0; s.lastT = performance.now();
       } else if (e.touches.length === 2) {
         e.preventDefault();
@@ -638,8 +716,8 @@ export default function DayTimeline() {
           const focalSecs = (s.scaleStartOff + cx) / s.scaleStartPx;
           const centerSecs = (s.scaleStartOff + cx) / s.scaleStartPx;
           s.px = Math.max(MIN_PX, Math.min(effectiveMaxPx(centerSecs, s.vpW), s.scaleStartPx * scale));
-          s.off = focalSecs * s.px - cx;
-          clampState();
+          s.centerSecs = focalSecs;
+          syncFromCenter(s);
           syncView();
         }
         return;
@@ -655,14 +733,10 @@ export default function DayTimeline() {
         const dt = now - s.lastT;
         const prevX = s.lastX;
         if (dt > 0 && dt < 80) s.velX = (prevX - coord) / dt * 1000;
+        s.dragAccum += coord - prevX;
         s.lastX = coord; s.lastT = now;
-        const maxOff = s.px * TOTAL_SECS - s.vpW;
-        s.dragX0 += (coord - prevX) * 0.5;
-        s.off = Math.max(-80, Math.min(s.dragOff0 - (coord - s.dragX0), maxOff + 80));
-        const tcx = s.vpW / 2;
-        const tcs = (s.off + tcx) / s.px;
-        const tpx = transitionPx(tcs, s.vpW);
-        if (tpx !== null) { s.px = tpx; s.off = tcs * s.px - tcx; s.dragOff0 = s.off + (coord - s.dragX0); }
+        s.centerSecs = s.dragStartCenterSecs - s.dragAccum / s.px;
+        syncFromCenter(s, true);
         syncView();
       }
     };
@@ -674,7 +748,7 @@ export default function DayTimeline() {
         if (e.touches.length === 1) {
           const t = e.touches[0];
           const ct = s.portrait ? t.clientY : t.clientX;
-          s.dragX0 = ct; s.dragOff0 = s.off;
+          s.dragX0 = ct; s.dragStartCenterSecs = s.centerSecs; s.dragAccum = 0;
           s.velX = 0; s.lastX = ct; s.lastT = performance.now();
         }
         return;
@@ -694,7 +768,7 @@ export default function DayTimeline() {
       el.removeEventListener("touchend",   onTouchEnd);
       el.removeEventListener("touchcancel",onTouchEnd);
     };
-  }, [clampState, syncView, startFling, portrait]);
+  }, [clampState, syncView, startFling]);
 
   useEffect(() => () => {
     cancelAnimationFrame(p.current.animRaf);
@@ -758,30 +832,23 @@ export default function DayTimeline() {
     return m > 0 ? `${h}h ${m}m` : `${h}h`;
   })();
 
-  const LABEL_STEPS = [30, 60, 300, 3600];
-  const labelStep = LABEL_STEPS.find(s => s * px >= 50) ?? 3600;
+  const labelStep = rulerLabelStep(px, vpW, off);
 
-  const rulerLabels: { s: number; x: number; label: string }[] = [];
-  if (px > 0 && vpW > 0 && !portrait) {
-    const first = Math.floor((off / px) / labelStep) * labelStep;
-    for (let s = first; s <= (off + vpW) / px + labelStep; s += labelStep) {
-      if (s < 0 || s > TOTAL_SECS) continue;
-      const x = s * px - off;
-      if (x < -40 || x > vpW + 40) continue;
-      rulerLabels.push({ s, x, label: tickLabel(s) });
-    }
-  }
+  const rulerLabels = !portrait
+    ? buildRulerLabels(px, vpW, off, labelStep).map(({ s, pos, label }) => ({
+        s,
+        x: pos,
+        label,
+      }))
+    : [];
 
-  const rulerLabelsV: { s: number; y: number; label: string }[] = [];
-  if (px > 0 && vpW > 0 && portrait) {
-    const first = Math.floor((off / px) / labelStep) * labelStep;
-    for (let s = first; s <= (off + vpW) / px + labelStep; s += labelStep) {
-      if (s < 0 || s > TOTAL_SECS) continue;
-      const y = s * px - off;
-      if (y < -20 || y > vpW + 20) continue;
-      rulerLabelsV.push({ s, y, label: tickLabel(s) });
-    }
-  }
+  const rulerLabelsV = portrait
+    ? buildRulerLabels(px, vpW, off, labelStep).map(({ s, pos, label }) => ({
+        s,
+        y: pos,
+        label,
+      }))
+    : [];
 
   // ── Shared event panel ────────────────────────────────────────────────────────
 
@@ -816,33 +883,46 @@ export default function DayTimeline() {
           </div>
         </div>
       ) : portrait ? (
-        /* Portrait idle: 2-column icon grid */
-        <div className="h-full flex items-center justify-center p-5 select-none">
-          <div className="grid grid-cols-2 gap-x-6 gap-y-3 w-full max-w-65">
-            {/* Row 1: top icons */}
-            <div className="flex justify-center">
-              <Image src="/icons/touchpan.svg" alt="" width={200} height={200} className="w-1/2 aspect-square invert opacity-35" unoptimized />
-            </div>
-            <div className="flex justify-center">
-              <Image src="/icons/touchzoom.svg" alt="" width={200} height={200} className="w-1/2 aspect-square invert opacity-35" unoptimized />
-            </div>
-            {/* Row 2: labels (midway between both icon rows) */}
-            <p className="text-center text-white/30 text-xs uppercase tracking-widest">Pan</p>
-            <p className="text-center text-white/30 text-xs uppercase tracking-widest">Zoom</p>
-            {/* Row 3: bottom icons */}
-            <div className="flex justify-center">
-              <Image src="/icons/scroll.svg" alt="" width={200} height={200} className="w-1/2 aspect-square invert opacity-35" unoptimized />
-            </div>
-            <div className="flex items-center gap-1">
-              <div className="flex-1">
-                <Image src="/icons/ctrl.svg" alt="" width={200} height={200} className="w-full aspect-square invert opacity-35" unoptimized />
+        <div className="relative h-full min-h-0 overflow-hidden bg-[#151b28] pointer-events-none">
+          {px > 0 && clustersV.map(({ lead, pos: y, evts }) => (
+            <button
+              key={lead.id}
+              type="button"
+              className="absolute right-2 left-2 flex items-center gap-2 rounded-md px-2 text-left cursor-pointer pointer-events-auto focus:outline-none focus-visible:ring-1 focus-visible:ring-white/30"
+              style={{
+                top: y - PORTRAIT_TAB_H / 2,
+                height: PORTRAIT_TAB_H,
+                background: "rgba(20,28,45,0.92)",
+                border: `1px solid ${lead.color}28`,
+              }}
+              aria-label={`${lead.title}, ${fmtRelToShoot(lead.time)}`}
+              onPointerDown={(e) => e.stopPropagation()}
+              onClick={(e) => {
+                e.stopPropagation();
+                setSelected(lead);
+                scrollToSecs((lead.time.getTime() - START_MS) / 1000);
+              }}
+            >
+              <span
+                className="shrink-0 rounded-full"
+                aria-hidden
+                style={{ width: 5, height: 5, background: lead.color }}
+              />
+              <div className="min-w-0 flex-1">
+                <span className="block truncate text-[13px] font-medium text-white/80 leading-snug">
+                  {lead.title}
+                </span>
+                <span className="block truncate text-[11px] text-white/42 leading-snug">
+                  {fmtRelToShoot(lead.time)}
+                </span>
               </div>
-              <span className="text-white/20 text-xs shrink-0">+</span>
-              <div className="flex-1">
-                <Image src="/icons/scroll.svg" alt="" width={200} height={200} className="w-full aspect-square invert opacity-35" unoptimized />
-              </div>
-            </div>
-          </div>
+              {evts.length > 1 && (
+                <span className="shrink-0 text-[10px] font-mono text-white/30">
+                  {evts.length}
+                </span>
+              )}
+            </button>
+          ))}
         </div>
       ) : (
         /* Landscape idle: 2-column icon grid */
@@ -969,10 +1049,11 @@ export default function DayTimeline() {
             {rulerLabelsV.map(({ s, y, label }) => (
               <span
                 key={s}
-                className="absolute font-mono pointer-events-none"
+                className="absolute font-mono pointer-events-none text-right"
                 style={{
                   top: y,
-                  left: V_LINE_X + 10,
+                  right: 4,
+                  left: V_LINE_X + 6,
                   transform: "translateY(-50%)",
                   fontSize: 11,
                   letterSpacing: "-0.4px",
@@ -1107,9 +1188,8 @@ export default function DayTimeline() {
                 key={s}
                 className="absolute font-mono pointer-events-none"
                 style={{
-                  left: x,
+                  left: x + 5,
                   top: LINE_Y + 18,
-                  transform: "translateX(-50%)",
                   fontSize: 11,
                   color: "rgba(255,255,255,0.45)",
                   animation: "tl-fade-in 0.25s ease-out forwards",

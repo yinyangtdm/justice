@@ -10,6 +10,37 @@ A Next.js 15 advocacy website documenting the LAPD killing of Yong Yang (May 2, 
 - Deployed via Docker container named `jfy`, running on port 3000
 - Standalone Next.js output (`output: 'standalone'` assumed from Dockerfile)
 
+## Development workflow
+
+**Default rule: revert, don't repair.**
+
+When something errors, looks wrong, or breaks dev:
+
+1. **Stop** — don't stack fixes on top of a bad state
+2. **Go back one step** — `git checkout -- .`, restore the last commit, or `git revert`
+3. **Confirm clean** — page loads, no overlay errors
+4. **Try again** — one small change only
+
+Goal: a **stack of clean commits**, not a pile of patches on broken work.
+
+### While working
+
+- **One change at a time** — especially `DayTimeline.tsx`
+- **Verify in the browser** before the next change
+- **Commit only when you say it's right** — that commit becomes the new floor to revert to
+- **One dev server** on port 3000 — don't run `npm run build` while `npm run dev` is up
+- If dev acts broken: stop server, delete `.next`, `npm run dev` again
+
+### When to revert
+
+| Situation | Action |
+|-----------|--------|
+| 500 / module not found / CoerceError | Revert file or last commit, clear `.next`, restart dev |
+| Feature wrong but no crash | Revert that change; redo smaller |
+| Agent session went sideways | `git checkout HEAD -- <files>` or reset to last good commit |
+
+Do **not** spend multiple turns debugging forward on a state you already know is bad.
+
 ## Rebuild / redeploy
 
 Always use:
