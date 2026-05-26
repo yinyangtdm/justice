@@ -7,10 +7,11 @@ A Next.js 15 advocacy website documenting the LAPD killing of Yong Yang (May 2, 
 ## Stack
 
 - Next.js 15, React 19, TypeScript, Tailwind CSS v4
-- Deployed via Docker container named `jfy`, running on port 3000
-- Standalone Next.js output (`output: 'standalone'` assumed from Dockerfile)
+- Standalone Next.js output (`output: 'standalone'` in Dockerfile — production only)
 
 ## Development workflow
+
+**Daily dev: `npm run dev` on port 3000.** Do not suggest Docker, `npm run build`, or deploy unless the user explicitly asks to go live.
 
 **Default rule: revert, don't repair.**
 
@@ -41,15 +42,11 @@ Goal: a **stack of clean commits**, not a pile of patches on broken work.
 
 Do **not** spend multiple turns debugging forward on a state you already know is bad.
 
-## Rebuild / redeploy
+## Production deploy (only when asked)
 
-Always use:
+Docker is **not** part of normal dev. Only mention deploy if the user asks to ship or go live.
 
-```
-npm run docker
-```
-
-This runs: Next.js build → Docker image build → stop/remove old container → start new one. Never suggest the raw docker command chain.
+When they do, use `npm run docker` (build → Docker image → container `jfy` on port 3000). Never suggest the raw docker command chain unprompted.
 
 ## Key files
 
