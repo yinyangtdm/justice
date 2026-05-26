@@ -70,6 +70,9 @@ const LANE_H    = 34;
 const PORTRAIT_TAB_H = 44;
 const MAX_LANES = 3;
 
+const SCROLL_ANIM_MS = 950;
+const PANEL_ADJACENT_MS = 600;
+
 const MIN_PX    = 80 / 615;
 const MAX_PX    = 80 / 60;   // max zoom: ~1 min visible
 
@@ -112,6 +115,15 @@ function zonePeak(z: ZoneTransition, vpW: number): number {
 
 function easeInOut(t: number): number {
   return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+}
+
+function buildPanelPages(from: Evt, to: Evt, prevIdx: number, targetIdx: number): Evt[] {
+  const dir = targetIdx > prevIdx ? 1 : -1;
+  if (Math.abs(targetIdx - prevIdx) <= 1) {
+    return dir > 0 ? [from, to] : [to, from];
+  }
+  const bridge = EVENTS[prevIdx + dir];
+  return dir > 0 ? [from, bridge, to] : [to, bridge, from];
 }
 
 function transitionPx(centerSecs: number, vpW: number): number | null {
@@ -401,8 +413,23 @@ export default function DayTimeline() {
     wheelRaf: 0,
   });
 
+  const navRef = useRef({
+    selectEvent: (_evt: Evt) => {},
+    selected: null as Evt | null,
+    panelAnimating: false,
+  });
+
   const [view, setView]         = useState({ px: 0, off: 0, vpW: 0 });
   const [selected, setSelected] = useState<Evt | null>(null);
+  const [displayEvt, setDisplayEvt] = useState<Evt | null>(null);
+  const [panelPages, setPanelPages] = useState<Evt[]>([]);
+  const [panelProgress, setPanelProgress] = useState(0);
+  const [panelAnimating, setPanelAnimating] = useState(false);
+  const [panelVpW, setPanelVpW] = useState(0);
+  const panelProgressRef = useRef(0);
+  const panelRafRef = useRef(0);
+  const panelVpRef = useRef<HTMLDivElement>(null);
+  const sliderRef = useRef<HTMLDivElement>(null);
   const [portrait, setPortrait] = useState(false);
   const [cssFullscreen, setCssFullscreen] = useState(false);
   const [nativeFullscreen, setNativeFullscreen] = useState(false);
@@ -535,6 +562,112 @@ export default function DayTimeline() {
     };
     p.current.animRaf = requestAnimationFrame(tick);
   }, [syncView]);
+
+  const applyPanelTransform = useCallback((progress: number) => {
+    const w = panelVpRef.current?.offsetWidth ?? 0;
+    if (sliderRef.current && w > 0) {
+      sliderRef.current.style.transform = `translate3d(${-progress * w}px,0,0)`;
+    }
+  }, []);
+
+  const animatePanelPages = useCallback((
+    pages: Evt[],
+    prevIdx: number,
+    targetIdx: number,
+    duration: number,
+  ) => {
+    cancelAnimationFrame(panelRafRef.current);
+    const dir = targetIdx > prevIdx ? 1 : -1;
+    const start = dir > 0 ? 0 : pages.length - 1;
+    const end = dir > 0 ? pages.length - 1 : 0;
+
+    setPanelPages(pages);
+    panelProgressRef.current = start;
+    applyPanelTransform(start);
+    setPanelProgress(start);
+    setPanelAnimating(true);
+
+    const startT = performance.now();
+    const tick = (now: number) => {
+      const t = Math.min((now - startT) / duration, 1);
+      const progress = start + (end - start) * easeInOut(t);
+      panelProgressRef.current = progress;
+      applyPanelTransform(progress);
+
+      if (t < 1) {
+        panelRafRef.current = requestAnimationFrame(tick);
+      } else {
+        panelProgressRef.current = end;
+        applyPanelTransform(end);
+        setPanelPages([pages[end]]);
+        setPanelProgress(0);
+        setPanelAnimating(false);
+        setDisplayEvt(pages[end]);
+      }
+    };
+    panelRafRef.current = requestAnimationFrame(tick);
+  }, [applyPanelTransform]);
+
+  const deselectEvent = useCallback(() => {
+    cancelAnimationFrame(panelRafRef.current);
+    setSelected(null);
+    setDisplayEvt(null);
+    setPanelPages([]);
+    setPanelProgress(0);
+    setPanelAnimating(false);
+    panelProgressRef.current = 0;
+  }, []);
+
+  const animateRulerToEvent = useCallback((evt: Evt) => {
+    scrollToSecs((evt.time.getTime() - START_MS) / 1000);
+  }, [scrollToSecs]);
+
+  const selectEvent = useCallback((evt: Evt) => {
+    const prev = displayEvt ?? selected;
+    const prevIdx = prev ? EVENTS.findIndex(e => e.id === prev.id) : -1;
+    const targetIdx = EVENTS.findIndex(e => e.id === evt.id);
+
+    setSelected(evt);
+    animateRulerToEvent(evt);
+
+    if (p.current.portrait) {
+      cancelAnimationFrame(panelRafRef.current);
+      setDisplayEvt(evt);
+      setPanelPages([evt]);
+      setPanelAnimating(false);
+    } else if (prevIdx < 0 || prevIdx === targetIdx) {
+      cancelAnimationFrame(panelRafRef.current);
+      setDisplayEvt(evt);
+      setPanelPages([evt]);
+      setPanelProgress(0);
+      setPanelAnimating(false);
+      panelProgressRef.current = 0;
+      applyPanelTransform(0);
+    } else if (prev) {
+      const pages = buildPanelPages(prev, evt, prevIdx, targetIdx);
+      const skip = Math.abs(targetIdx - prevIdx) > 1;
+      setDisplayEvt(evt);
+      animatePanelPages(pages, prevIdx, targetIdx, skip ? SCROLL_ANIM_MS : PANEL_ADJACENT_MS);
+    }
+  }, [displayEvt, selected, animateRulerToEvent, animatePanelPages, applyPanelTransform]);
+
+  navRef.current = { selectEvent, selected, panelAnimating };
+
+  useEffect(() => {
+    const el = panelVpRef.current;
+    if (!el || !selected || portrait) return;
+    const measure = () => {
+      const w = el.offsetWidth;
+      if (w > 0) {
+        setPanelVpW(w);
+        applyPanelTransform(panelProgressRef.current);
+      }
+    };
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [selected, applyPanelTransform, portrait]);
 
   // ── Init + resize ────────────────────────────────────────────────────────────
 
@@ -775,6 +908,7 @@ export default function DayTimeline() {
     cancelAnimationFrame(p.current.pxRaf);
     cancelAnimationFrame(p.current.zoomRaf);
     cancelAnimationFrame(p.current.wheelRaf);
+    cancelAnimationFrame(panelRafRef.current);
   }, []);
 
   // ── Marker layout ─────────────────────────────────────────────────────────────
@@ -852,9 +986,87 @@ export default function DayTimeline() {
 
   // ── Shared event panel ────────────────────────────────────────────────────────
 
+  const selectedIdx = selected ? EVENTS.findIndex(e => e.id === selected.id) : -1;
+  const hasPrev = selectedIdx > 0;
+  const hasNext = selectedIdx >= 0 && selectedIdx < EVENTS.length - 1;
+
+  const navBtnClass =
+    "absolute top-0 bottom-0 z-20 w-11 sm:w-12 flex items-center justify-center text-white/25 hover:text-white/70 disabled:opacity-20 disabled:pointer-events-none transition-colors cursor-pointer";
+
+  const renderEventContent = (evt: Evt) => (
+    <div className="h-full w-full min-h-0 flex flex-row">
+      <div className="min-w-0 flex flex-1 flex-col justify-center overflow-y-auto py-6 sm:py-8 px-6 sm:px-10 md:px-12">
+        <p className="font-mono text-sm text-white/50 mb-2">
+          {fmt12(evt.time)}
+          {evt.endTime ? ` – ${fmt12(evt.endTime)}` : ""}
+        </p>
+        <h2 className="font-serif text-xl sm:text-2xl font-bold text-white leading-snug mb-4">
+          {evt.title}
+        </h2>
+        <p className="text-white/70 text-[15px] leading-relaxed mb-5">
+          {evt.text}
+        </p>
+        <p className="text-sm font-medium" style={{ color: evt.color }}>
+          {fmtRelToShoot(evt.time)}
+        </p>
+      </div>
+    </div>
+  );
+
+  const shownEvt = displayEvt ?? selected;
+  const carouselPages = panelPages.length > 0 ? panelPages : (shownEvt ? [shownEvt] : []);
+  const panelTransform = `translate3d(${-panelProgress * panelVpW}px,0,0)`;
+
   const eventPanel = (
-    <div className="flex-1 relative overflow-hidden min-h-0">
-      {selected ? (
+    <div className="flex-1 relative overflow-hidden min-h-0 bg-[#151b28]">
+      {selected && !portrait ? (
+        <>
+          <button
+            type="button"
+            onPointerDown={(e) => e.stopPropagation()}
+            onClick={() => hasPrev && selectEvent(EVENTS[selectedIdx - 1])}
+            disabled={!hasPrev}
+            className={`${navBtnClass} left-0`}
+            aria-label="Previous event"
+          >
+            <svg width="20" height="20" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+              <path d="M10 3L5 8l5 5" />
+            </svg>
+          </button>
+          <button
+            type="button"
+            onPointerDown={(e) => e.stopPropagation()}
+            onClick={() => hasNext && selectEvent(EVENTS[selectedIdx + 1])}
+            disabled={!hasNext}
+            className={`${navBtnClass} right-0`}
+            aria-label="Next event"
+          >
+            <svg width="20" height="20" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+              <path d="M6 3l5 5-5 5" />
+            </svg>
+          </button>
+
+          <div ref={panelVpRef} className="absolute inset-x-11 sm:inset-x-12 inset-y-0 overflow-hidden">
+            {shownEvt && panelVpW > 0 && (
+              <div
+                ref={sliderRef}
+                className="absolute top-0 left-0 h-full will-change-transform"
+                style={panelAnimating ? undefined : { transform: panelTransform }}
+              >
+                {carouselPages.map((evt, i) => (
+                  <div
+                    key={`${evt.id}-${i}`}
+                    className="absolute top-0 h-full"
+                    style={{ width: panelVpW, left: i * panelVpW }}
+                  >
+                    {renderEventContent(evt)}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </>
+      ) : selected && portrait ? (
         <div className="h-full flex flex-col">
           <div
             className="flex items-center gap-3 px-5 py-4 shrink-0 border-b border-white/10"
@@ -868,7 +1080,7 @@ export default function DayTimeline() {
               </p>
             </div>
             <button
-              onClick={() => setSelected(null)}
+              onClick={deselectEvent}
               onPointerDown={(e) => e.stopPropagation()}
               className="text-white/40 hover:text-white/80 transition-colors p-2 shrink-0 cursor-pointer"
               aria-label="Close"
@@ -899,8 +1111,7 @@ export default function DayTimeline() {
               onPointerDown={(e) => e.stopPropagation()}
               onClick={(e) => {
                 e.stopPropagation();
-                setSelected(lead);
-                scrollToSecs((lead.time.getTime() - START_MS) / 1000);
+                selectEvent(lead);
               }}
             >
               <span
@@ -1034,13 +1245,12 @@ export default function DayTimeline() {
                   onClick={(e) => {
                     e.stopPropagation();
                     if (!isSel) {
-                      setSelected(lead);
-                      scrollToSecs((lead.time.getTime() - START_MS) / 1000);
+                      selectEvent(lead);
                     } else {
                       const curIdx = evts.findIndex(ev => ev.id === selected?.id);
                       const next = evts[(curIdx + 1) % evts.length];
-                      if (next.id === selected?.id) setSelected(null);
-                      else { setSelected(next); scrollToSecs((next.time.getTime() - START_MS) / 1000); }
+                      if (next.id === selected?.id) deselectEvent();
+                      else selectEvent(next);
                     }
                   }}
                 />
@@ -1124,13 +1334,12 @@ export default function DayTimeline() {
                     onClick={(e) => {
                       e.stopPropagation();
                       if (!isSel) {
-                        setSelected(lead);
-                        scrollToSecs((lead.time.getTime() - START_MS) / 1000);
+                        selectEvent(lead);
                       } else {
                         const curIdx = evts.findIndex(ev => ev.id === selected?.id);
                         const next = evts[(curIdx + 1) % evts.length];
-                        if (next.id === selected?.id) setSelected(null);
-                        else { setSelected(next); scrollToSecs((next.time.getTime() - START_MS) / 1000); }
+                        if (next.id === selected?.id) deselectEvent();
+                        else selectEvent(next);
                       }
                     }}
                   >
