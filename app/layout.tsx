@@ -46,9 +46,9 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className={`${inter.variable} ${playfair.variable}`}>
-      <body className="antialiased flex min-h-dvh min-h-screen flex-col">
+      <body className="antialiased min-h-screen flex flex-col">
         <Header />
-        <main id="maincontent" className="flex flex-1 flex-col min-h-0">
+        <main id="maincontent" className="flex-1">
           {children}
         </main>
         <Footer />
