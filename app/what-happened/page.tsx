@@ -61,7 +61,27 @@ export default function WhatHappenedPage() {
         </p>
         <p>
           Body camera footage has since been released. It documents the moments leading up to and
-          including the shooting of Yong Yang.
+          including the shooting of Yong Yang. Clip below: 21:18–23:18.
+        </p>
+        <div className="not-prose my-8 aspect-video w-full overflow-hidden rounded-xl border border-border bg-black shadow-lg">
+          <iframe
+            src="https://www.youtube.com/embed/0GTvW4wyYLs?start=1278&end=1398"
+            title="Olympic Area OIS 05/02/2024 — body camera clip 21:18–23:18"
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+            allowFullScreen
+            className="h-full w-full"
+          />
+        </div>
+        <p className="text-sm text-muted">
+          Source:{" "}
+          <a
+            href="https://www.youtube.com/watch?v=0GTvW4wyYLs&t=1278"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-accent hover:underline"
+          >
+            LAPD HQ on YouTube (starts at 21:18)
+          </a>
         </p>
         <p>
           <Link href="/legal/civil-petition">

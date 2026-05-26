@@ -1,9 +1,11 @@
 import { readFileSync, writeFileSync, mkdirSync, existsSync, readdirSync } from "fs"
 import { join, extname } from "path"
 import { spawnSync } from "child_process"
+import { parseYoutubeUrl, youtubeEmbedUrl, parseTimestamp } from "./timeline-media-utils.mjs"
 
 const ROOT = join(import.meta.dirname, "..")
 const CSV_PATH = join(ROOT, "data", "timeline-source.csv")
+const MAP_PATH = join(ROOT, "data", "timeline-media-map.json")
 const OUT_DIR = join(ROOT, "public", "timeline")
 const MANIFEST_PATH = join(ROOT, "data", "timeline-media.json")
 
@@ -23,6 +25,22 @@ function findYtDlp() {
 }
 
 const ytDlp = findYtDlp()
+
+function findFfmpeg() {
+  const bundled = join(
+    ROOT,
+    "node_modules",
+    "@ffmpeg-installer",
+    "win32-x64",
+    "ffmpeg.exe",
+  )
+  if (existsSync(bundled)) return bundled
+  const probe = spawnSync("ffmpeg", ["-version"], { encoding: "utf8" })
+  if (probe.status === 0) return "ffmpeg"
+  return null
+}
+
+const ffmpeg = findFfmpeg()
 
 mkdirSync(join(OUT_DIR, "images"), { recursive: true })
 mkdirSync(join(OUT_DIR, "videos"), { recursive: true })
@@ -68,6 +86,59 @@ function downloadVideo(sourceUrl, slug) {
     return null
   }
   console.log(`saved: ${local}`)
+  return local
+}
+
+function downloadYoutubeClip(clip, slug) {
+  if (!ytDlp) {
+    console.warn("yt-dlp not found — skipping YouTube clip download")
+    return null
+  }
+  if (!ffmpeg) {
+    console.warn("ffmpeg not found — skipping YouTube clip download (npm i -D @ffmpeg-installer/ffmpeg)")
+    return null
+  }
+
+  const existing = findVideoFile(slug)
+  if (existing) {
+    console.log(`skip yt video: ${existing}`)
+    return existing
+  }
+
+  const startSec = parseTimestamp(clip.start)
+  const endSec = parseTimestamp(clip.end)
+  if (startSec == null || endSec == null) {
+    console.warn(`YouTube clip ${slug}: need start and end timestamps`)
+    return null
+  }
+
+  const url = `https://www.youtube.com/watch?v=${clip.videoId}`
+  const section = `*${startSec}-${endSec}`
+  const outTemplate = join(OUT_DIR, "videos", `${slug}.%(ext)s`)
+  const args = [
+    "--ffmpeg-location", ffmpeg,
+    "--download-sections", section,
+    "-f", "bestvideo[height<=1080]+bestaudio/best[height<=1080]/best",
+    "--merge-output-format", "mp4",
+    "--force-keyframes-at-cuts",
+    "--no-playlist",
+    "-o", outTemplate,
+    url,
+  ]
+
+  console.log(`yt clip: ${url} (${clip.start}–${clip.end})`)
+  const result = spawnSync(ytDlp, args, { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] })
+  if (result.status !== 0) {
+    console.error(result.stderr || result.stdout)
+    return null
+  }
+
+  const local = findVideoFile(slug)
+  if (!local) {
+    console.warn(`YouTube download finished but file missing for ${slug}`)
+    return null
+  }
+  console.log(`saved yt clip: ${local}`)
   return local
 }
 
@@ -168,11 +239,15 @@ for (let i = 1; i < raw.length; i++) {
   if (kind === "vimeo" || kind === "youtube") {
     if (kind === "vimeo") {
       const vimeoId = mediaUrl.match(/vimeo\.com\/(\d+)/)?.[1]
+      entry.vimeoId = vimeoId || null
       entry.embedUrl = vimeoId ? `https://player.vimeo.com/video/${vimeoId}` : null
     }
     if (kind === "youtube") {
-      const ytId = mediaUrl.match(/(?:v=|youtu\.be\/|embed\/)([\w-]{11})/)?.[1]
-      entry.embedUrl = ytId ? `https://www.youtube.com/embed/${ytId}` : null
+      const { videoId, start, end } = parseYoutubeUrl(mediaUrl)
+      entry.ytId = videoId
+      entry.embedUrl = videoId
+        ? youtubeEmbedUrl({ videoId, start, end })
+        : null
     }
 
     try {
@@ -181,6 +256,8 @@ for (let i = 1; i < raw.length; i++) {
         : `https://www.youtube.com/oembed?url=${encodeURIComponent(mediaUrl)}&format=json`
       const oembed = await fetch(oembedUrl).then(r => r.json())
       entry.thumbnailUrl = oembed.thumbnail_url || null
+      const iframeSrc = oembed.html?.match(/src="([^"]+)"/)?.[1]
+      if (kind === "vimeo" && iframeSrc) entry.playerUrl = iframeSrc
       if (entry.thumbnailUrl) {
         const thumbName = `${id}-thumb.jpg`
         const thumbDest = join(OUT_DIR, "images", thumbName)
@@ -202,6 +279,38 @@ for (let i = 1; i < raw.length; i++) {
 
   entries.push(entry)
 }
+
+/** YouTube clips keyed by DayTimeline event id (see data/timeline-media-map.json) */
+async function pullYoutubeClips() {
+  if (!existsSync(MAP_PATH)) return
+
+  const map = JSON.parse(readFileSync(MAP_PATH, "utf8"))
+  for (const [eventId, clip] of Object.entries(map.youtube || {})) {
+    if (!clip.videoId) continue
+
+    const posterSlug = clip.poster || `youtube-${clip.videoId}`
+    const thumbName = `${posterSlug}-thumb.jpg`
+    const thumbDest = join(OUT_DIR, "images", thumbName)
+    const thumbUrl = `https://i.ytimg.com/vi/${clip.videoId}/hqdefault.jpg`
+
+    if (!existsSync(thumbDest)) {
+      try {
+        const res = await fetch(thumbUrl)
+        if (!res.ok) throw new Error(`HTTP ${res.status}`)
+        writeFileSync(thumbDest, Buffer.from(await res.arrayBuffer()))
+        console.log(`yt thumb (${eventId}): ${thumbName}`)
+      } catch (e) {
+        console.warn(`YouTube thumb failed for event ${eventId}:`, e.message)
+      }
+    } else {
+      console.log(`skip yt thumb: ${thumbName}`)
+    }
+
+    downloadYoutubeClip(clip, posterSlug)
+  }
+}
+
+await pullYoutubeClips()
 
 writeFileSync(MANIFEST_PATH, JSON.stringify({ extractedAt: new Date().toISOString(), entries }, null, 2))
 console.log(`\n${entries.length} media entries → ${MANIFEST_PATH}`)

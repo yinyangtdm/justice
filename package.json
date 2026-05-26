@@ -7,6 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
+    "timeline:pull": "node scripts/pull-timeline-media.mjs",
+    "timeline:media": "node scripts/pull-timeline-media.mjs && node scripts/generate-timeline-media-lib.mjs",
     "docker:dev": "docker compose up"
   },
   "dependencies": {
@@ -18,6 +20,7 @@
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3",
+    "@ffmpeg-installer/ffmpeg": "^1.1.0",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/react": "^19",

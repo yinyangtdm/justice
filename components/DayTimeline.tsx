@@ -2,6 +2,7 @@
 
 import { useRef, useState, useEffect, useCallback, Fragment } from "react";
 import Image from "next/image";
+import { mediaForEvent } from "@/lib/timeline-media";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -24,32 +25,34 @@ const EVENTS: Evt[] = [
   { id: "3",  title: "Yoon enters without permission",      time: d(10,54,5),   endTime: d(10,54,20),  color: "#FF8C42", text: "Dad opens the door to talk to Yong, and Yoon enters without permission, ignoring Yong's wishes. He gets promptly dismissed." },
   { id: "4",  title: "Yoon calls 911",                      time: d(10,54,30),  endTime: d(10,58),     color: "#FF8C42", text: "Yoon immediately calls 911 reporting that Yong \"tried to attack\" him, effectively deciding that he will not help. On his YouTube channel, he can be seen urging family members not to call the police in the event of mental health crises due to the danger of their loved one being injured or killed." },
   { id: "5",  title: "Lopez & partner arrive",              time: d(11,10,52),                         color: "#4A9EFF", text: "Lopez and partner arrive at the scene." },
+  { id: "8",  title: "Officers enter staircase",            time: d(11,14,10),                         color: "#4A9EFF", text: "Lopez and partner enter the staircase and walk toward the apartment door." },
   { id: "6",  title: "Officers talk to Yong (35s)",         time: d(11,14,31),  endTime: d(11,15,7),   color: "#4A9EFF", text: "Lopez and partner talk to Yong for 35 seconds and call for backup." },
-  { id: "7",  title: "Ruvalcaba assigns weapon roles",      time: d(11,35,8),                          color: "#FF8C42", text: "Sgt Ruvalcaba and several more officers arrive. She tries to convince Dad to criminalize his own son by \"signing a paper\" stating he is trespassing. He refuses. Undeterred, she moves forward with her plan. \"Who's my primary? And less lethal?\" She is designating weapon roles for a high-risk tactical encounter. The primary is in charge of using deadly force if a suspect pulls a weapon or takes an action that poses a threat. Because their focus is 100% on lethal cover, they do not handle handcuffs, or less-lethal tools. Lopez quickly volunteers to be the primary." },
-  { id: "9",  title: "Use of force declared",               time: d(11,37,45),  endTime: d(11,38,33),  color: "#FF8C42", text: "Sgt Ruvalcaba talks to Yong for less than a minute & verbally states her decision that there will be a \"use of force,\" even though no crime has been committed, and nobody is in any danger… except for Yong. There is nobody else in the apartment." },
+  { id: "7",  title: "Ruvalcaba assigns weapon roles",      time: d(11,35,8),                          color: "#FF8C42", text: "Sgt Ruvalcaba arrives with several more officers. She tries to convince Dad to criminalize his own son by \"signing a paper\" stating he is trespassing. He refuses. Undeterred, she moves forward with her plan. \"Who's my primary? And less lethal?\" She is designating weapon roles for a high-risk tactical encounter. The primary is in charge of using deadly force if a suspect pulls a weapon or takes an action that poses a threat. Because their focus is 100% on lethal cover, they do not handle handcuffs, or less-lethal tools. Lopez quickly volunteers to be the primary." },
+  { id: "9",  title: "Use of force declared",               time: d(11,37,45),  endTime: d(11,38,33),  color: "#FF8C42", text: "Sgt Ruvalcaba talks to Yong for less than a minute & verbally states her decision that there will be a \"use of force,\" even though no crime has been committed.There is nobody else in the apartment." },
   { id: "10", title: "Paramedics arrive with gurney",       time: d(11,54,14),                         color: "#4A9EFF", text: "Paramedics arrive and prepare a gurney to transport Yong. The gurney is to make sure he isn't injured while being escorted to the hospital." },
   { id: "11", title: "USC is the destination",              time: d(11,57,26),                         color: "#4A9EFF", text: "Yoon tells Dad that USC Medical Center is the destination, but doesn't attempt to assist or facilitate in any way, which is his designated role. The police are not trained to handle mental health situations, and he is. As the psychiatric professional, he should be the one to make contact with Yong." },
-  { id: "12", title: "Door forced open",                    time: d(11,57,47),  endTime: d(11,57,56),  color: "#FF8C42", text: "Partner forcefully opens the door." },
-  { id: "13", title: "Gurney arrives at doorstep",          time: d(11,58,2),                          color: "#4A9EFF", text: "Gurney arrives at the doorstep to go up to the house, but the stairway is filled with police officers. On the CCTV footage the paramedics can be seen reacting to gunshots." },
-  { id: "14", title: "Lopez shoots Yong",                   time: d(11,58,3),   endTime: d(11,58,4),   color: "#FF4444", text: "Lopez shoots Yong within seconds of the door opening, from outside the door into the apartment. Twice in the chest and once in the stomach. One of the bullets punctures his heart. Another perforates his lung and another one obliterates his spleen. He also takes a defensive wound through his left arm." },
-  { id: "15", title: "Paramedics ordered to leave",         time: d(11,58,13),                         color: "#FF8C42", text: "The paramedics are given orders, but not to give emergency first aid to Yong. They are told to turn around and leave." },
+  { id: "12", title: "Officers forcefully open the door",   time: d(11,57,47),  endTime: d(11,57,56),  color: "#FF8C42", text: "Partner forcefully opens the door." },
+  { id: "13", title: "Gurney arrives at doorstep",          time: d(11,58,2),                          color: "#4A9EFF", text: "Gurney arrives at the doorstep to go up to the house, but the stairway is filled with police officers." },
+  { id: "14", title: "Lopez shoots Yong three times",       time: d(11,58,3),   endTime: d(11,58,4),   color: "#FF4444", text: "Lopez shoots Yong within seconds of the door opening, from outside the door into the apartment. Twice in the chest and once in the stomach. One of the bullets punctures his heart. Another perforates his lung and another one obliterates his spleen. He also takes a defensive wound through his left arm." },
+  { id: "15", title: "Paramedics ordered to leave",         time: d(11,58,13),                         color: "#FF8C42", text: "The paramedics can be seen reacting to the gunshots. Then they are given orders immediately after the shooting, but not to give emergency first aid to Yong. They are told to turn around and leave." },
   { id: "16", title: "\"Officer Needs Help\" call",         time: d(11,58,16),                         color: "#FF4444", text: "As Yong lays dying on the ground, Sgt Ruvalcaba issues an \"Officer Needs Help\" call over her radio. This is the most urgent, high-priority radio transmission in law enforcement. It signals that an officer is in immediate, life-threatening danger and requires every available unit within driving distance to respond to their location at maximum speed no matter what they are doing. This call is meant to be triggered when an officer is in a physical fight for their life, heavily outnumbered, taking active gunfire, or seriously injured or incapacitated and cannot defend themselves. No medical assistance is given to Yong." },
   { id: "17", title: "Paramedics leave with gurney",        time: d(11,58,19),                         color: "#4A9EFF", text: "The paramedics push their gurney out down the driveway and prepare to load it into the ambulance." },
-  { id: "18", title: "Ambulance leaves scene",              time: d(11,59,43),                         color: "#4A9EFF", text: "The ambulance leaves the scene." },
-  { id: "19", title: "Less-lethal gun removed",             time: d(12,0,50),                          color: "#FF8C42", text: "One of the officers carries the less lethal projectile gun away from the scene less than three minutes after the shooting." },
+  { id: "27", title: "Police handcuff Yong",                time: d(11,58,43),                         color: "#FF4444", text: "Police handcuff Yong after he has stopped breathing." },
+  { id: "18", title: "Ambulance leaves the scene",          time: d(11,59,43),                         color: "#4A9EFF", text: "The paramedics leave in the ambulance." },
+  { id: "19", title: "Less-lethal gun removed",             time: d(12,0,50),                          color: "#FF8C42", text: "One of the officers can be seen walking out with the less lethal gun after the shooting." },
   { id: "20", title: "LAFD first team arrives",             time: d(12,6,20),                          color: "#4A9EFF", text: "The first team of LAFD (6 men) arrive and walk in without any urgency 8 minutes after the shooting. The Fire Department is two blocks away." },
   { id: "21", title: "LAFD second team arrives",            time: d(12,10,20),                         color: "#4A9EFF", text: "A second team of firemen (2 men with a gurney) walk in slowly. They don't seem to be in a hurry either." },
-  { id: "22", title: "Yong is declared dead",                  time: d(12,12),                            color: "#FF4444", text: "According to the report, this is when Yong is declared dead by the LAFD. Nobody says anything to his parents." },
-  { id: "23", title: "Ponce: \"sorry for your loss\"",  time: d(13,2),                             color: "#4A9EFF", text: "Over an hour after the shooting, Aaron Ponce approaches Dad and says \"Sorry for your loss.\" When asked what happened he says he doesn't know because he wasn't there." },
-  { id: "24", title: "Death reported to Medical Examiner",  time: d(13,59),                            color: "#4A9EFF", text: "Two hours after Yong dies, LAPD Officer Carrasco 39957 reports his death to the Medical Examiner." },
+  { id: "22", title: "Yong is declared dead",               time: d(12,12),                            color: "#FF4444", text: "According to the report, this is when Yong is declared dead by the LAFD. Nobody says anything to his parents." },
+  { id: "23", title: "Ponce: \"sorry for your loss\"",      time: d(13,2),                             color: "#4A9EFF", text: "Over an hour after the shooting, Aaron Ponce approaches Dad and says \"Sorry for your loss.\" When asked what happened he says he doesn't know because he wasn't there." },
+  { id: "24", title: "Death reported to Medical Examiner",  time: d(13,59),                            color: "#4A9EFF", text: "LAPD Officer Carrasco 39957 reports Yong'sdeath to the Medical Examiner." },
   { id: "25", title: "Parents taken to Olympic Station",    time: d(14,43),                            color: "#4A9EFF", text: "Mom & Dad are told to meet with officers at LAPD Olympic station where all their questions will be answered. Sgt Violet Potter 35464, the Family Liaison, accompanies them." },
   { id: "26", title: "Parents interrogated at FID",         time: d(15,26),     endTime: d(18,28),     color: "#FF8C42", text: "Mom & Dad are kept waiting for over half an hour before they finally begin talking with FID (Force Investigation Division) at Olympic station. Except they don't get a single answer to any of their questions. Instead, they are interrogated for three hours. Meanwhile, a press conference is held back at the apartment, in which Yong is portrayed as a violent man armed with an 11-inch knife who lunged at the officer. The officer had to fire his weapon to protect his own life, and Yong was \"struck,\" and died on the scene. It turns out the knife was 5 inches long and he never lunged at an officer." },
   { id: "28", title: "Medical Examiner arrives",            time: d(18,7),                             color: "#4A9EFF", text: "Field Medical Examiner Kelly Yagerlener arrives." },
-  { id: "29", title: "Parents return to see Yong's body",  time: d(18,41),                            color: "#4A9EFF", text: "Mom & Dad get back to the street outside their home to meet with Sgt Andrey Wilkins, another Family Liaison, to see Yong's body before it is transported to the Coroner's Office, as promised by Andrey Wilkins." },
+  { id: "29", title: "Parents return to see Yong's body",  time: d(18,41),                            color: "#4A9EFF", text: "Mom & Dad get back to the street outside their home to meet with Sgt Andrey Wilkins, another Family Liaison, who had promised they would be allowed to see Yong's body before it is transported to the Coroner's Office." },
   { id: "30", title: "Body taken without family's knowledge", time: d(18,52),                          color: "#FF8C42", text: "Andrey Wilkins tells Mom and Dad that Yong's body was taken \"without his knowing\" and moved to the Coroner's Office by Forensic Attendant Dustin Miranda." },
   { id: "31", title: "Scene investigation completed",       time: d(19,30),                            color: "#4A9EFF", text: "Kelly Yagerlener completes the scene investigation accompanied by Lieutenant Brian Kim." },
   { id: "32", title: "Yagerlener speaks with family",       time: d(19,36),                            color: "#4A9EFF", text: "Field Medical Examiner Kelly Yagerlener speaks with Mom and Dad." },
-  { id: "33", title: "Mom and Dad allowed to go back home", time: d(20,21),                            color: "#4A9EFF", text: "Mom and Dad are finally allowed to return to their apartment." },
+  { id: "33", title: "Mom and Dad allowed to go back home", time: d(20,21),                            color: "#4A9EFF", text: "Mom and Dad are finally allowed to return to their apartment. All evidence has been wiped clean." },
 ];
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -81,6 +84,69 @@ const clusterR  = (n: number) => n > 1 ? DOT_R + 2 : DOT_R;
 
 interface Cluster { evts: Evt[]; lead: Evt; pos: number; r: number; }
 
+function estimateCardW(title: string): number {
+  return Math.min(CARD_W_MAX, Math.max(CARD_W, title.length * 6.5 + 20));
+}
+
+/** Push tag cards apart horizontally; dots stay at anchor pos. */
+function layoutTagOffsetsX(clusters: Cluster[]): Record<string, number> {
+  const sorted = [...clusters].sort((a, b) => a.pos - b.pos);
+  if (!sorted.length) return {};
+
+  const items = sorted.map(c => ({
+    id: c.lead.id,
+    anchorX: c.pos,
+    width: estimateCardW(c.lead.title),
+    offset: 0,
+  }));
+
+  for (let i = 1; i < items.length; i++) {
+    const prev = items[i - 1];
+    const cur = items[i];
+    const minLeft = prev.anchorX + prev.offset + prev.width + 8;
+    const curLeft = cur.anchorX + cur.offset;
+    if (curLeft < minLeft) cur.offset = minLeft - cur.anchorX;
+  }
+
+  for (let i = items.length - 2; i >= 0; i--) {
+    const cur = items[i];
+    const next = items[i + 1];
+    const maxOffset = next.anchorX + next.offset - cur.width - 8 - cur.anchorX;
+    if (cur.offset > maxOffset) cur.offset = Math.max(0, maxOffset);
+  }
+
+  return Object.fromEntries(items.map(i => [i.id, i.offset]));
+}
+
+/** Push portrait tabs apart vertically; strip dots stay at anchor pos. */
+function layoutTabOffsetsY(clusters: Cluster[]): Record<string, number> {
+  const sorted = [...clusters].sort((a, b) => a.pos - b.pos);
+  if (!sorted.length) return {};
+
+  const items = sorted.map(c => ({
+    id: c.lead.id,
+    anchorY: c.pos,
+    offset: 0,
+  }));
+
+  for (let i = 1; i < items.length; i++) {
+    const prev = items[i - 1];
+    const cur = items[i];
+    const minCenter = prev.anchorY + prev.offset + PORTRAIT_TAB_H + 4;
+    const curCenter = cur.anchorY + cur.offset;
+    if (curCenter < minCenter) cur.offset = minCenter - cur.anchorY;
+  }
+
+  for (let i = items.length - 2; i >= 0; i--) {
+    const cur = items[i];
+    const next = items[i + 1];
+    const maxOffset = next.anchorY + next.offset - PORTRAIT_TAB_H - 4 - cur.anchorY;
+    if (cur.offset > maxOffset) cur.offset = Math.max(0, maxOffset);
+  }
+
+  return Object.fromEntries(items.map(i => [i.id, i.offset]));
+}
+
 function buildClusters(items: { evt: Evt; pos: number }[]): Cluster[] {
   if (!items.length) return [];
   const sorted = [...items].sort((a, b) => a.pos - b.pos);
@@ -102,10 +168,10 @@ const t2s = (h: number, m: number, s = 0) =>
 
 // ── Zoom transition (shooting area) ───────────────────────────────────────────
 
-interface ZoneTransition { start: number; end: number; targetPx?: number; targetSecs?: number; exitSecs?: number; entrySecs?: number; ramp?: number; curve?: "ease" | "trapezoid"; }
+interface ZoneTransition { start: number; end: number; targetPx?: number; targetSecs?: number; exitSecs?: number; entrySecs?: number; ramp?: number; curve?: "ease" | "trapezoid"; latchOpen?: boolean; }
 
 const ZOOM_TRANSITIONS: ZoneTransition[] = [
-  { start: t2s(10, 51, 59), end: t2s(10, 56, 31), targetSecs: 14 * 60, exitSecs: 3600, curve: "ease" },
+  { start: t2s(10, 51, 59), end: t2s(10, 56, 31), targetSecs: 14 * 60, exitSecs: 3600, curve: "ease", latchOpen: true },
   { start: t2s(11, 54, 33), end: t2s(12, 1,  33), targetPx: 80 / 5, exitSecs: 11 * 60 },
 ];
 
@@ -159,6 +225,76 @@ function transitionPx(centerSecs: number, vpW: number): number | null {
   return null;
 }
 
+function transitionPxEntry(centerSecs: number, vpW: number, z: ZoneTransition): number {
+  const span = z.end - z.start;
+  const pos = Math.max(0, Math.min(centerSecs - z.start, span * 0.5));
+  const peak = zonePeak(z, vpW);
+  const entryPx = z.entrySecs && vpW > 0 ? vpW / z.entrySecs : MIN_PX;
+
+  if (z.curve === "ease") {
+    const t = pos / (span * 0.5);
+    return entryPx + (peak - entryPx) * easeInOut(t);
+  }
+
+  const ramp = span * (z.ramp ?? 0.45);
+  const lt = pos / ramp;
+  const t = lt * lt * lt * lt * lt * lt * lt;
+  return entryPx + (peak - entryPx) * t;
+}
+
+function findZoneIndex(centerSecs: number): number {
+  for (let i = 0; i < ZOOM_TRANSITIONS.length; i++) {
+    const z = ZOOM_TRANSITIONS[i];
+    const pos = centerSecs - z.start;
+    if (pos >= 0 && pos <= z.end - z.start) return i;
+  }
+  return -1;
+}
+
+type ZoomHoldState = {
+  centerSecs: number;
+  vpW: number;
+  zoomLatched: boolean[];
+};
+
+function resolveTransitionPx(s: ZoomHoldState): number | null {
+  const activeIdx = findZoneIndex(s.centerSecs);
+
+  // Another zoom zone takes priority while we're inside it (e.g. shooting at 11:54)
+  if (activeIdx >= 0 && !ZOOM_TRANSITIONS[activeIdx].latchOpen) {
+    return transitionPx(s.centerSecs, s.vpW);
+  }
+
+  for (let i = 0; i < ZOOM_TRANSITIONS.length; i++) {
+    const z = ZOOM_TRANSITIONS[i];
+    if (!z.latchOpen) continue;
+
+    if (s.centerSecs < z.start) {
+      s.zoomLatched[i] = false;
+      continue;
+    }
+
+    // Past zone start — rewind below start is the only way to unlatch
+    if (s.zoomLatched[i]) {
+      if (activeIdx >= 0 && activeIdx !== i) break;
+      return zonePeak(z, s.vpW);
+    }
+
+    const span = z.end - z.start;
+    const pos = s.centerSecs - z.start;
+
+    // Past peak point on the timeline — latch (even if panned past in one step)
+    if (pos >= span * 0.5) {
+      s.zoomLatched[i] = true;
+      return zonePeak(z, s.vpW);
+    }
+
+    return transitionPxEntry(s.centerSecs, s.vpW, z);
+  }
+
+  return transitionPx(s.centerSecs, s.vpW);
+}
+
 function effectiveMaxPx(centerSecs: number, vpW: number): number {
   for (const z of ZOOM_TRANSITIONS) {
     const pos = centerSecs - z.start;
@@ -169,15 +305,34 @@ function effectiveMaxPx(centerSecs: number, vpW: number): number {
 
 /** Derive px/off from centerSecs — pan always moves time forward/back, never fights zoom morph. */
 function syncFromCenter(
-  s: { px: number; off: number; vpW: number; centerSecs: number },
+  s: ZoomHoldState & { px: number; off: number },
   allowOvershoot = false,
 ) {
   if (s.px <= 0 || s.vpW <= 0) return;
   const anchor = s.vpW / 2;
   s.centerSecs = Math.max(0, Math.min(TOTAL_SECS, s.centerSecs));
-  const tpx = transitionPx(s.centerSecs, s.vpW);
-  if (tpx !== null) s.px = tpx;
-  else s.px = Math.max(MIN_PX, Math.min(effectiveMaxPx(s.centerSecs, s.vpW), s.px));
+  const tpx = resolveTransitionPx(s);
+
+  let latchedPeak = 0;
+  for (let i = 0; i < ZOOM_TRANSITIONS.length; i++) {
+    if (s.zoomLatched[i] && ZOOM_TRANSITIONS[i].latchOpen) {
+      latchedPeak = Math.max(latchedPeak, zonePeak(ZOOM_TRANSITIONS[i], s.vpW));
+    }
+  }
+
+  if (tpx !== null) {
+    // Manual zoom-out only while latched open — don't block zone entry zoom-in
+    if (latchedPeak > 0 && s.px < latchedPeak - 1e-6) {
+      for (let i = 0; i < ZOOM_TRANSITIONS.length; i++) {
+        if (ZOOM_TRANSITIONS[i].latchOpen) s.zoomLatched[i] = false;
+      }
+      s.px = Math.max(MIN_PX, Math.min(effectiveMaxPx(s.centerSecs, s.vpW), s.px));
+    } else {
+      s.px = tpx;
+    }
+  } else {
+    s.px = Math.max(MIN_PX, Math.min(effectiveMaxPx(s.centerSecs, s.vpW), s.px));
+  }
   const maxOff = Math.max(0, s.px * TOTAL_SECS - s.vpW);
   const nextOff = s.centerSecs * s.px - anchor;
   if (allowOvershoot) {
@@ -404,6 +559,7 @@ export default function DayTimeline() {
     animRaf: 0,
     pxRaf: 0,
     zoomRaf: 0, zoomStartPx: 0, zoomTargetPx: 0, zoomStartT: 0,
+    zoomLatched: ZOOM_TRANSITIONS.map(() => false),
     pinching: false,
     pinchStartDist: 0,
     scaleStartPx: 0,
@@ -918,7 +1074,7 @@ export default function DayTimeline() {
   const visible = EVENTS.map(evt => ({
     evt,
     x: (evt.time.getTime() - START_MS) / 1000 * px - off,
-  })).filter(({ x }) => x >= -(CARD_W + 20) && x <= vpW + CARD_W + 20);
+  })).filter(({ x }) => x >= -(CARD_W + 20) && x <= vpW + 20);
 
   const clusters = buildClusters(visible.map(({ evt, x }) => ({ evt, pos: x })));
   const clusterLanes: Record<string, number> = {};
@@ -932,12 +1088,22 @@ export default function DayTimeline() {
     clusterLanes[c.lead.id] = assigned;
   });
 
+  const tagOffsetX: Record<string, number> = {};
+  for (let lane = 0; lane < MAX_LANES; lane++) {
+    const inLane = clusters.filter(c => (clusterLanes[c.lead.id] ?? 0) === lane);
+    // Only lay out tags whose anchor dot is on-screen — off-screen events must not
+    // push on-screen tags (and must not be pulled left by viewport clamping).
+    const onScreen = inLane.filter(c => c.pos >= -8 && c.pos <= vpW + 8);
+    Object.assign(tagOffsetX, layoutTagOffsetsX(onScreen));
+  }
+
   const visibleV = EVENTS.map(evt => ({
     evt,
     y: (evt.time.getTime() - START_MS) / 1000 * px - off,
   })).filter(({ y }) => y >= -20 && y <= vpW + 20);
 
   const clustersV = buildClusters(visibleV.map(({ evt, y }) => ({ evt, pos: y })));
+  const tabOffsetY = layoutTabOffsetsY(clustersV);
 
   const visibleDurations = EVENTS.filter((evt): evt is Evt & { endTime: Date } => !!evt.endTime)
     .map(evt => {
@@ -993,9 +1159,71 @@ export default function DayTimeline() {
   const navBtnClass =
     "absolute top-0 bottom-0 z-20 w-11 sm:w-12 flex items-center justify-center text-white/25 hover:text-white/70 disabled:opacity-20 disabled:pointer-events-none transition-colors cursor-pointer";
 
-  const renderEventContent = (evt: Evt) => (
+  const renderEventMedia = (evt: Evt, isActive: boolean) => {
+    const media = mediaForEvent(evt.id);
+    if (!media) return null;
+
+    const { imageUrl, videoEmbedUrl, videoSrc, posterUrl } = media;
+
+    if (videoSrc || videoEmbedUrl) {
+      return (
+        <div className="relative w-full aspect-video bg-black/40 rounded-sm overflow-hidden shadow-lg">
+          {isActive && videoSrc ? (
+            <video
+              src={videoSrc}
+              poster={posterUrl}
+              controls
+              playsInline
+              className="absolute inset-0 h-full w-full object-contain bg-black"
+            />
+          ) : isActive && videoEmbedUrl ? (
+            <iframe
+              src={videoEmbedUrl}
+              title={evt.title}
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+              className="absolute inset-0 h-full w-full"
+            />
+          ) : posterUrl ? (
+            <Image
+              src={posterUrl}
+              alt=""
+              fill
+              className="object-contain"
+              unoptimized
+            />
+          ) : (
+            <div className="absolute inset-0 bg-black/25" />
+          )}
+        </div>
+      );
+    }
+
+    if (imageUrl) {
+      return (
+        <div className="relative flex items-center justify-center w-full max-h-[min(50vh,420px)] bg-black/20 rounded-sm overflow-hidden shadow-lg p-2">
+          <Image
+            src={imageUrl}
+            alt=""
+            width={960}
+            height={720}
+            className="max-h-[min(48vh,400px)] w-auto h-auto object-contain"
+            unoptimized
+          />
+        </div>
+      );
+    }
+
+    return null;
+  };
+
+  const renderEventContent = (evt: Evt, isActive: boolean) => (
     <div className="h-full w-full min-h-0 flex flex-row">
-      <div className="min-w-0 flex flex-1 flex-col justify-center overflow-y-auto py-6 sm:py-8 px-6 sm:px-10 md:px-12">
+      {mediaForEvent(evt.id) && (
+        <div className="min-w-0 flex flex-[1.15] items-center justify-center p-5 sm:p-8 md:p-10">
+          {renderEventMedia(evt, isActive)}
+        </div>
+      )}
+      <div className={`min-w-0 flex flex-col justify-center overflow-y-auto py-6 sm:py-8 px-6 sm:px-10 md:px-12 ${mediaForEvent(evt.id) ? "flex-[0.85] pl-6 sm:pl-10 md:pl-12 pr-4 sm:pr-8" : "flex-1"}`}>
         <p className="font-mono text-sm text-white/50 mb-2">
           {fmt12(evt.time)}
           {evt.endTime ? ` – ${fmt12(evt.endTime)}` : ""}
@@ -1014,6 +1242,7 @@ export default function DayTimeline() {
   );
 
   const shownEvt = displayEvt ?? selected;
+  const activeEvtId = shownEvt?.id;
   const carouselPages = panelPages.length > 0 ? panelPages : (shownEvt ? [shownEvt] : []);
   const panelTransform = `translate3d(${-panelProgress * panelVpW}px,0,0)`;
 
@@ -1059,7 +1288,7 @@ export default function DayTimeline() {
                     className="absolute top-0 h-full"
                     style={{ width: panelVpW, left: i * panelVpW }}
                   >
-                    {renderEventContent(evt)}
+                    {renderEventContent(evt, evt.id === activeEvtId && !panelAnimating)}
                   </div>
                 ))}
               </div>
@@ -1091,7 +1320,8 @@ export default function DayTimeline() {
             </button>
           </div>
           <div className="flex-1 overflow-y-auto p-5">
-            <p className="text-white/70 text-[15px] leading-relaxed">{selected.text}</p>
+            {renderEventMedia(selected, true)}
+            <p className="text-white/70 text-[15px] leading-relaxed mt-5">{selected.text}</p>
           </div>
         </div>
       ) : portrait ? (
@@ -1102,7 +1332,7 @@ export default function DayTimeline() {
               type="button"
               className="absolute right-2 left-2 flex items-center gap-2 rounded-md px-2 text-left cursor-pointer pointer-events-auto focus:outline-none focus-visible:ring-1 focus-visible:ring-white/30"
               style={{
-                top: y - PORTRAIT_TAB_H / 2,
+                top: y + (tabOffsetY[lead.id] ?? 0) - PORTRAIT_TAB_H / 2,
                 height: PORTRAIT_TAB_H,
                 background: "rgba(20,28,45,0.92)",
                 border: `1px solid ${lead.color}28`,
@@ -1314,6 +1544,7 @@ export default function DayTimeline() {
               const { lead, pos: x, r, evts } = cluster;
               const lane = clusterLanes[lead.id] ?? 0;
               const isSel = evts.some(e => selected?.id === e.id);
+              const tagOffset = tagOffsetX[lead.id] ?? 0;
               const cardBot = LINE_Y - DOT_R - 6 - lane * LANE_H;
               const cardTop = cardBot - CARD_H;
               const stemH   = Math.max(0, LINE_Y - DOT_R - 4 - cardBot);
@@ -1323,12 +1554,11 @@ export default function DayTimeline() {
                     className="absolute focus:outline-none cursor-pointer"
                     onPointerDown={(e) => e.stopPropagation()}
                     style={{
-                      left: x,
+                      left: x + tagOffset,
                       top: Math.max(0, cardTop - 2),
                       height: CARD_H + 6,
                       zIndex: isSel ? 2 : 1,
                       overflow: "visible",
-                      transition: "top 0.33s ease-out",
                       animation: "tl-card-in 0.2s ease-out forwards",
                     }}
                     onClick={(e) => {
@@ -1366,14 +1596,30 @@ export default function DayTimeline() {
                       </span>
                     </div>
                     {stemH > 0 && (
-                      <div
-                        className="absolute pointer-events-none"
-                        style={{
-                          left: DOT_R - 0.5, top: CARD_H + 4,
-                          width: 1, height: stemH,
-                          background: `linear-gradient(to bottom, ${lead.color}55, ${lead.color}1a)`,
-                        }}
-                      />
+                      <>
+                        {tagOffset > 0 && (
+                          <div
+                            className="absolute pointer-events-none"
+                            style={{
+                              left: -tagOffset + DOT_R,
+                              top: CARD_H + 4,
+                              width: tagOffset,
+                              height: 1,
+                              background: `${lead.color}44`,
+                            }}
+                          />
+                        )}
+                        <div
+                          className="absolute pointer-events-none"
+                          style={{
+                            left: -tagOffset + DOT_R - 0.5,
+                            top: CARD_H + 4,
+                            width: 1,
+                            height: stemH,
+                            background: `linear-gradient(to bottom, ${lead.color}55, ${lead.color}1a)`,
+                          }}
+                        />
+                      </>
                     )}
                   </button>
                   <div
