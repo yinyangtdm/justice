@@ -104,6 +104,15 @@ const PANEL_ADJACENT_MS = 600;
 const MIN_PX    = 80 / 615;
 const MAX_PX    = 80 / 60;   // max zoom: ~1 min visible
 
+/** px/s — full speed below knee; excess rolls off smoothly toward max. */
+const FLING_VEL_KNEE = 2100;
+const FLING_VEL_MAX = 2850;
+const FLING_VEL_SOFTEN = 520;
+
+/** Fast flings only: extra decay after this much pan travel (px). */
+const FLING_DIST_DECAY_START = 450;
+const FLING_DIST_DECAY_RAMP = 420;
+
 const COLOR_PRI: Record<string, number> = { "#FF4444": 2, "#FF8C42": 1, "#4A9EFF": 0 };
 const clusterR  = (n: number) => n > 1 ? DOT_R + 2 : DOT_R;
 
@@ -428,6 +437,15 @@ const panDelta = (portrait: boolean, e: WheelEvent) =>
     ? e.deltaY
     : Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
 
+/** Soft cap on fling speed — snappy up to knee, extreme flicks asymptote toward max. */
+const limitFlingVelocity = (v: number) => {
+  const sign = Math.sign(v) || 1;
+  const a = Math.abs(v);
+  if (a <= FLING_VEL_KNEE) return v;
+  const span = FLING_VEL_MAX - FLING_VEL_KNEE;
+  return sign * (FLING_VEL_KNEE + span * (1 - Math.exp(-(a - FLING_VEL_KNEE) / FLING_VEL_SOFTEN)));
+};
+
 const RULER_TICKS = [
   { s: 1,    h: 3,  op: 0.15, w: 0.5 },
   { s: 5,    h: 4,  op: 0.20, w: 0.5 },
@@ -688,6 +706,10 @@ export default function DayTimeline() {
     cancelAnimationFrame(p.current.animRaf);
     cancelAnimationFrame(p.current.pxRaf);
     let lastT = -1;
+    vel = limitFlingVelocity(vel);
+    const startVel = vel;
+    const isFastFling = Math.abs(startVel) >= FLING_VEL_KNEE;
+    let travelPx = 0;
 
     const tick = (now: number) => {
       if (lastT < 0) { lastT = now; p.current.animRaf = requestAnimationFrame(tick); return; }
@@ -708,7 +730,16 @@ export default function DayTimeline() {
           vel -= (s.off - curMaxOff) * 280 * subDt;
           vel *= Math.pow(0.0005, subDt);
         } else {
-          vel *= s.touchFling ? Math.pow(0.05, subDt) : Math.pow(0.0001, subDt);
+          const stepPx = Math.abs(vel * subDt);
+          travelPx += stepPx;
+          const baseDecay = s.touchFling ? 0.05 : 0.0001;
+          let decay = baseDecay;
+          if (isFastFling && travelPx > FLING_DIST_DECAY_START) {
+            const ramp = 1 - Math.exp(-(travelPx - FLING_DIST_DECAY_START) / FLING_DIST_DECAY_RAMP);
+            const fastDecay = s.touchFling ? 0.032 : 0.00006;
+            decay = baseDecay * (1 - ramp) + fastDecay * ramp;
+          }
+          vel *= Math.pow(decay, subDt);
         }
         s.centerSecs += vel * subDt / s.px;
         syncFromCenter(s, true);
