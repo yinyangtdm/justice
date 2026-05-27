@@ -1,7 +1,0 @@
-{"sessionId":"4b74c4","location":"DayTimeline.tsx:fsButton","message":"fullscreen button clicked","data":{"fullscreen":false,"cssFullscreen":false,"nativeFullscreen":false,"hasFsEl":false},"timestamp":1779846597545,"hypothesisId":"A"}
-{"sessionId":"4b74c4","location":"DayTimeline.tsx:toggleFullscreen","message":"toggleFullscreen called","data":{"cssFullscreen":false,"nativeFullscreen":false,"hasFsEl":false,"branch":"enter-or-stuck"},"timestamp":1779846597545,"hypothesisId":"B,C,D"}
-{"sessionId":"4b74c4","location":"DayTimeline.tsx:fullscreenchange","message":"fullscreenchange fired","data":{"hasFsEl":true,"fsTag":"DIV"},"timestamp":1779846597751,"hypothesisId":"B"}
-{"sessionId":"4b74c4","location":"DayTimeline.tsx:fsButton","message":"fullscreen button clicked","data":{"fullscreen":true,"cssFullscreen":false,"nativeFullscreen":true,"hasFsEl":true},"timestamp":1779846599375,"hypothesisId":"A"}
-{"sessionId":"4b74c4","location":"DayTimeline.tsx:toggleFullscreen","message":"toggleFullscreen called","data":{"cssFullscreen":false,"nativeFullscreen":true,"hasFsEl":true,"branch":"exit-native"},"timestamp":1779846599375,"hypothesisId":"B,C,D"}
-{"sessionId":"4b74c4","location":"DayTimeline.tsx:exitFullscreen","message":"exitFullscreen resolved","data":{"stillFs":false},"timestamp":1779846599591,"hypothesisId":"C"}
-{"sessionId":"4b74c4","location":"DayTimeline.tsx:fullscreenchange","message":"fullscreenchange fired","data":{"hasFsEl":false,"fsTag":null},"timestamp":1779846599592,"hypothesisId":"B"}

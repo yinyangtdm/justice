@@ -113,6 +113,11 @@ const FLING_VEL_SOFTEN = 520;
 const FLING_DIST_DECAY_START = 450;
 const FLING_DIST_DECAY_RAMP = 420;
 
+/** Time constant (s) for px morph while drag-panning through autozoom zones. */
+const PX_DRAG_MORPH_TAU = 0.085;
+/** Fixed dt for drag rAF loop — matches fling/wheel, avoids irregular pointer-event gaps. */
+const DRAG_FRAME_DT = 1 / 60;
+
 const COLOR_PRI: Record<string, number> = { "#FF4444": 2, "#FF8C42": 1, "#4A9EFF": 0 };
 const clusterR  = (n: number) => n > 1 ? DOT_R + 2 : DOT_R;
 
@@ -252,6 +257,18 @@ function findZoneIndex(centerSecs: number): number {
   return -1;
 }
 
+/** Rising limb of an active zone — target px increases as you pan forward. */
+function isZoneZoomInPhase(centerSecs: number): boolean {
+  const idx = findZoneIndex(centerSecs);
+  if (idx < 0) return false;
+  const z = ZOOM_TRANSITIONS[idx];
+  const span = z.end - z.start;
+  const pos = centerSecs - z.start;
+  if (z.curve === "ease") return pos <= span * 0.5;
+  const ramp = span * (z.ramp ?? 0.45);
+  return pos < ramp;
+}
+
 type ZoomHoldState = {
   centerSecs: number;
   vpW: number;
@@ -308,6 +325,7 @@ function effectiveMaxPx(centerSecs: number, vpW: number): number {
 function syncFromCenter(
   s: ZoomHoldState & { px: number; off: number },
   allowOvershoot = false,
+  morphDt = 0,
 ) {
   if (s.px <= 0 || s.vpW <= 0) return;
   const anchor = s.vpW / 2;
@@ -321,19 +339,31 @@ function syncFromCenter(
     }
   }
 
+  let targetPx: number;
   if (tpx !== null) {
     // Manual zoom-out only while latched open — don't block zone entry zoom-in
-    if (latchedPeak > 0 && s.px < latchedPeak - 1e-6) {
+    if (latchedPeak > 0 && s.px < latchedPeak - 1e-6 && tpx < latchedPeak - 1e-6) {
       for (let i = 0; i < ZOOM_TRANSITIONS.length; i++) {
         if (ZOOM_TRANSITIONS[i].latchOpen) s.zoomLatched[i] = false;
       }
-      s.px = Math.max(MIN_PX, Math.min(effectiveMaxPx(s.centerSecs, s.vpW), s.px));
+      targetPx = Math.max(MIN_PX, Math.min(effectiveMaxPx(s.centerSecs, s.vpW), s.px));
     } else {
-      s.px = tpx;
+      targetPx = tpx;
     }
   } else {
-    s.px = Math.max(MIN_PX, Math.min(effectiveMaxPx(s.centerSecs, s.vpW), s.px));
+    targetPx = Math.max(MIN_PX, Math.min(effectiveMaxPx(s.centerSecs, s.vpW), s.px));
   }
+
+  if (morphDt > 0) {
+    const blend = 1 - Math.exp(-morphDt / PX_DRAG_MORPH_TAU);
+    // On zone entry the curve starts at entryPx; don't morph down from current px — wait for the curve to catch up.
+    const morphTarget =
+      targetPx < s.px && isZoneZoomInPhase(s.centerSecs) ? s.px : targetPx;
+    s.px = s.px + (morphTarget - s.px) * blend;
+  } else {
+    s.px = targetPx;
+  }
+
   const maxOff = Math.max(0, s.px * TOTAL_SECS - s.vpW);
   const nextOff = s.centerSecs * s.px - anchor;
   if (allowOvershoot) {
@@ -565,6 +595,8 @@ export default function DayTimeline() {
     portrait: false,
     wheelVel: 0,
     wheelRaf: 0,
+    dragRaf: 0,
+    dragPendingDelta: 0,
   });
 
   const navRef = useRef<{
@@ -671,6 +703,44 @@ export default function DayTimeline() {
     setView({ px, off, vpW });
   }, []);
 
+  const applyDragDelta = useCallback((delta: number) => {
+    if (delta === 0) return;
+    const s = p.current;
+    s.dragAccum += delta;
+    const steps = Math.max(1, Math.ceil(Math.abs(delta) / 10));
+    const subDelta = delta / steps;
+    const subDt = DRAG_FRAME_DT / steps;
+    for (let i = 0; i < steps; i++) {
+      s.centerSecs -= subDelta / s.px;
+      syncFromCenter(s, true, subDt);
+    }
+  }, []);
+
+  const stopDragLoop = useCallback(() => {
+    const s = p.current;
+    if (s.dragRaf) cancelAnimationFrame(s.dragRaf);
+    s.dragRaf = 0;
+    s.dragPendingDelta = 0;
+  }, []);
+
+  const runDragFrame = useCallback(function tick() {
+    const s = p.current;
+    if (!s.dragging) {
+      s.dragRaf = 0;
+      return;
+    }
+    const delta = s.dragPendingDelta;
+    s.dragPendingDelta = 0;
+    if (delta !== 0) applyDragDelta(delta);
+    else syncFromCenter(s, true, DRAG_FRAME_DT);
+    syncView();
+    s.dragRaf = requestAnimationFrame(tick);
+  }, [applyDragDelta, syncView]);
+
+  const ensureDragLoop = useCallback(() => {
+    const s = p.current;
+    if (!s.dragRaf && s.dragging) s.dragRaf = requestAnimationFrame(runDragFrame);
+  }, [runDragFrame]);
 
   const clampState = useCallback((allowOvershoot = false) => {
     syncFromCenter(p.current, allowOvershoot);
@@ -742,7 +812,7 @@ export default function DayTimeline() {
           vel *= Math.pow(decay, subDt);
         }
         s.centerSecs += vel * subDt / s.px;
-        syncFromCenter(s, true);
+        syncFromCenter(s, true, subDt);
       }
       syncView();
 
@@ -996,13 +1066,14 @@ export default function DayTimeline() {
     p.current.zoomRaf = 0;
     p.current.wheelRaf = 0;
     p.current.wheelVel = 0;
+    stopDragLoop();
     const s = p.current;
     outerRef.current?.setPointerCapture(e.pointerId);
     const coord = s.portrait ? e.clientY : e.clientX;
     s.pendingPointerId = e.pointerId;
     s.dragX0 = coord; s.dragStartCenterSecs = s.centerSecs; s.dragAccum = 0;
     s.velX = 0; s.lastX = coord; s.lastT = performance.now();
-  }, []);
+  }, [stopDragLoop]);
 
   const onPointerMove = useCallback((e: React.PointerEvent) => {
     if (e.pointerType === "touch") return;
@@ -1018,12 +1089,11 @@ export default function DayTimeline() {
     const now = performance.now();
     const dt  = now - s.lastT;
     if (dt > 0 && dt < 80) s.velX = (s.lastX - coord) / dt * 1000;
-    s.dragAccum += coord - s.lastX;
+    const deltaCoord = coord - s.lastX;
     s.lastX = coord; s.lastT = now;
-    s.centerSecs = s.dragStartCenterSecs - s.dragAccum / s.px;
-    syncFromCenter(s, true);
-    syncView();
-  }, [syncView]);
+    s.dragPendingDelta += deltaCoord;
+    ensureDragLoop();
+  }, [ensureDragLoop]);
 
   const onPointerUp = useCallback((e: React.PointerEvent) => {
     if (e.pointerType === "touch") return;
@@ -1032,8 +1102,11 @@ export default function DayTimeline() {
     if (!s.dragging) return;
     s.dragging = false;
     s.touchFling = false;
+    if (s.dragPendingDelta !== 0) applyDragDelta(s.dragPendingDelta);
+    stopDragLoop();
+    syncView();
     startFling(s.velX);
-  }, [startFling]);
+  }, [applyDragDelta, startFling, stopDragLoop, syncView]);
 
   // ── Touch drag + pinch zoom ────────────────────────────────────────────────────
 
@@ -1049,6 +1122,7 @@ export default function DayTimeline() {
       p.current.zoomRaf = 0;
       p.current.wheelRaf = 0;
       p.current.wheelVel = 0;
+      stopDragLoop();
       const s = p.current;
       if (e.touches.length === 1) {
         s.pinching = false;
@@ -1096,11 +1170,10 @@ export default function DayTimeline() {
         const dt = now - s.lastT;
         const prevX = s.lastX;
         if (dt > 0 && dt < 80) s.velX = (prevX - coord) / dt * 1000;
-        s.dragAccum += coord - prevX;
+        const deltaCoord = coord - prevX;
         s.lastX = coord; s.lastT = now;
-        s.centerSecs = s.dragStartCenterSecs - s.dragAccum / s.px;
-        syncFromCenter(s, true);
-        syncView();
+        s.dragPendingDelta += deltaCoord;
+        ensureDragLoop();
       }
     };
 
@@ -1118,6 +1191,9 @@ export default function DayTimeline() {
       }
       if (!s.dragging) return;
       s.dragging = false;
+      if (s.dragPendingDelta !== 0) applyDragDelta(s.dragPendingDelta);
+      stopDragLoop();
+      syncView();
       if (e.touches.length === 0) { s.touchFling = true; startFling(s.velX); }
     };
 
@@ -1131,13 +1207,14 @@ export default function DayTimeline() {
       el.removeEventListener("touchend",   onTouchEnd);
       el.removeEventListener("touchcancel",onTouchEnd);
     };
-  }, [clampState, syncView, startFling, cssFullscreen]);
+  }, [applyDragDelta, clampState, ensureDragLoop, startFling, stopDragLoop, syncView, cssFullscreen]);
 
   useEffect(() => () => {
     cancelAnimationFrame(p.current.animRaf);
     cancelAnimationFrame(p.current.pxRaf);
     cancelAnimationFrame(p.current.zoomRaf);
     cancelAnimationFrame(p.current.wheelRaf);
+    cancelAnimationFrame(p.current.dragRaf);
     cancelAnimationFrame(panelRafRef.current);
   }, []);
 
@@ -1212,38 +1289,6 @@ export default function DayTimeline() {
   const selectedIdx = selected ? EVENTS.findIndex(e => e.id === selected.id) : -1;
   const hasPrev = selectedIdx > 0;
   const hasNext = selectedIdx >= 0 && selectedIdx < EVENTS.length - 1;
-
-  const logNavHit = useCallback((
-    target: "prev" | "next" | "fullscreen",
-    e: React.PointerEvent<HTMLButtonElement>,
-  ) => {
-    if (portrait) return;
-    const rect = e.currentTarget.getBoundingClientRect();
-    const outerRect = outerRef.current?.getBoundingClientRect();
-    // #region agent log
-    fetch("http://127.0.0.1:7812/ingest/82c59420-cbac-47e0-a760-9212b86396d3", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "7a9393" },
-      body: JSON.stringify({
-        sessionId: "7a9393",
-        runId: "post-fix",
-        hypothesisId: target === "next" ? "A" : target === "fullscreen" ? "B" : "C",
-        location: "DayTimeline.tsx:nav-hit",
-        message: "nav pointer target",
-        data: {
-          target,
-          clientX: e.clientX,
-          clientY: e.clientY,
-          btnRect: { top: rect.top, right: rect.right, bottom: rect.bottom, left: rect.left, w: rect.width, h: rect.height },
-          outerRect: outerRect ? { top: outerRect.top, right: outerRect.right } : null,
-          nearTopRight: outerRect ? e.clientX > outerRect.right - 60 && e.clientY < outerRect.top + 60 : false,
-          selected: !!selected,
-        },
-        timestamp: Date.now(),
-      }),
-    }).catch(() => {});
-    // #endregion
-  }, [portrait, selected]);
 
   const navBtnClass =
     "absolute top-1/2 -translate-y-1/2 z-20 w-[50px] h-[50px] flex items-center justify-center text-white/25 hover:text-white/70 disabled:opacity-20 disabled:pointer-events-none transition-colors cursor-pointer";
@@ -1341,10 +1386,7 @@ export default function DayTimeline() {
         <>
           <button
             type="button"
-            onPointerDown={(e) => {
-              e.stopPropagation();
-              logNavHit("prev", e);
-            }}
+            onPointerDown={(e) => e.stopPropagation()}
             onClick={() => hasPrev && selectEvent(EVENTS[selectedIdx - 1])}
             disabled={!hasPrev}
             className={`${navBtnClass} left-0`}
@@ -1356,10 +1398,7 @@ export default function DayTimeline() {
           </button>
           <button
             type="button"
-            onPointerDown={(e) => {
-              e.stopPropagation();
-              logNavHit("next", e);
-            }}
+            onPointerDown={(e) => e.stopPropagation()}
             onClick={() => hasNext && selectEvent(EVENTS[selectedIdx + 1])}
             disabled={!hasNext}
             className={`${navBtnClass} right-0`}
@@ -1516,10 +1555,7 @@ export default function DayTimeline() {
     >
       <button
         type="button"
-        onPointerDown={(e) => {
-          e.stopPropagation();
-          logNavHit("fullscreen", e);
-        }}
+        onPointerDown={(e) => e.stopPropagation()}
         onClick={(e) => {
           e.stopPropagation()
           toggleFullscreen()
