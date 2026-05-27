@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState, useEffect, useCallback, Fragment } from "react";
+import { createPortal } from "react-dom";
 import Image from "next/image";
 import { mediaForEvent } from "@/lib/timeline-media";
 
@@ -20,39 +21,39 @@ interface Evt {
 const d = (h: number, m: number, s = 0) => new Date(2024, 4, 2, h, m, s);
 
 const EVENTS: Evt[] = [
-  { id: "1",  title: "Mom calls DMH",                      time: d(9,35),      endTime: d(9,55),      color: "#4A9EFF", text: "Mom calls the Department of Mental Health to request assistance with her son, who is having a mental health crisis. He is having persecutory delusions and auditory hallucinations." },
+  { id: "1",  title: "Mom calls DMH",                       time: d(9,35),      endTime: d(9,55),      color: "#4A9EFF", text: "Mom calls the Department of Mental Health to request assistance with her son, who is having a mental health crisis." },
   { id: "2",  title: "DMH clinician Yoon arrives",          time: d(10,53,40),  endTime: d(10,54,5),   color: "#4A9EFF", text: "DMH clinician Yoon arrives. Dad takes him to talk to Yong, who says he only wants to see his father. Nobody else." },
   { id: "3",  title: "Yoon enters without permission",      time: d(10,54,5),   endTime: d(10,54,20),  color: "#FF8C42", text: "Dad opens the door to talk to Yong, and Yoon enters without permission, ignoring Yong's wishes. He gets promptly dismissed." },
   { id: "4",  title: "Yoon calls 911",                      time: d(10,54,30),  endTime: d(10,58),     color: "#FF8C42", text: "Yoon immediately calls 911 reporting that Yong \"tried to attack\" him, effectively deciding that he will not help. On his YouTube channel, he can be seen urging family members not to call the police in the event of mental health crises due to the danger of their loved one being injured or killed." },
   { id: "5",  title: "Lopez & partner arrive",              time: d(11,10,52),                         color: "#4A9EFF", text: "Lopez and partner arrive at the scene." },
   { id: "8",  title: "Officers enter staircase",            time: d(11,14,10),                         color: "#4A9EFF", text: "Lopez and partner enter the staircase and walk toward the apartment door." },
   { id: "6",  title: "Officers talk to Yong (35s)",         time: d(11,14,31),  endTime: d(11,15,7),   color: "#4A9EFF", text: "Lopez and partner talk to Yong for 35 seconds and call for backup." },
-  { id: "7",  title: "Ruvalcaba assigns weapon roles",      time: d(11,35,8),                          color: "#FF8C42", text: "Sgt Ruvalcaba arrives with several more officers. She tries to convince Dad to criminalize his own son by \"signing a paper\" stating he is trespassing. He refuses. Undeterred, she moves forward with her plan. \"Who's my primary? And less lethal?\" She is designating weapon roles for a high-risk tactical encounter. The primary is in charge of using deadly force if a suspect pulls a weapon or takes an action that poses a threat. Because their focus is 100% on lethal cover, they do not handle handcuffs, or less-lethal tools. Lopez quickly volunteers to be the primary." },
-  { id: "9",  title: "Use of force declared",               time: d(11,37,45),  endTime: d(11,38,33),  color: "#FF8C42", text: "Sgt Ruvalcaba talks to Yong for less than a minute & verbally states her decision that there will be a \"use of force,\" even though no crime has been committed.There is nobody else in the apartment." },
+  { id: "7",  title: "Ruvalcaba assigns weapon roles",      time: d(11,35,8),                          color: "#FF8C42", text: "Sgt Ruvalcaba arrives with several more officers. She suggests that Dad sign a paper stating that Yong is trespassing. He refuses. She then assigns an officer to be the \"primary\" and another to be less lethal. She is designating weapon roles for a high-risk tactical encounter. The primary is in charge of using deadly force if a suspect pulls a weapon or takes an action that poses a threat. Because their focus is 100% on lethal cover, they do not handle handcuffs, or less-lethal tools." },
+  { id: "9",  title: "Ruvalcaba declares \"use of force\"", time: d(11,37,45),  endTime: d(11,38,33),  color: "#FF8C42", text: "Sgt Ruvalcaba talks to Yong for less than a minute & verbally states her decision that there will be a \"use of force,\" even though no crime has been committed.There is nobody else in the apartment." },
   { id: "10", title: "Paramedics arrive with gurney",       time: d(11,54,14),                         color: "#4A9EFF", text: "Paramedics arrive and prepare a gurney to transport Yong. The gurney is to make sure he isn't injured while being escorted to the hospital." },
-  { id: "11", title: "USC is the destination",              time: d(11,57,26),                         color: "#4A9EFF", text: "Yoon tells Dad that USC Medical Center is the destination, but doesn't attempt to assist or facilitate in any way, which is his designated role. The police are not trained to handle mental health situations, and he is. As the psychiatric professional, he should be the one to make contact with Yong." },
-  { id: "12", title: "Officers forcefully open the door",   time: d(11,57,47),  endTime: d(11,57,56),  color: "#FF8C42", text: "Partner forcefully opens the door." },
+  { id: "11", title: "\"USC is the destination\"",          time: d(11,57,26),                         color: "#4A9EFF", text: "Yoon tells Dad that USC Medical Center is the destination, but doesn't attempt to assist or facilitate in any way, which is his designated role. The police are not trained to handle mental health situations, and he is. As the psychiatric professional, he should be the one to make contact with Yong." },
+  { id: "12", title: "Officers forcefully open the door",   time: d(11,57,47),  endTime: d(11,57,56),  color: "#FF8C42", text: "As they walk up to the door, they discuss whether to do a \"callout\" or not. A callout is The officer in the front " },
   { id: "13", title: "Gurney arrives at doorstep",          time: d(11,58,2),                          color: "#4A9EFF", text: "Gurney arrives at the doorstep to go up to the house, but the stairway is filled with police officers." },
   { id: "14", title: "Lopez shoots Yong three times",       time: d(11,58,3),   endTime: d(11,58,4),   color: "#FF4444", text: "Lopez shoots Yong within seconds of the door opening, from outside the door into the apartment. Twice in the chest and once in the stomach. One of the bullets punctures his heart. Another perforates his lung and another one obliterates his spleen. He also takes a defensive wound through his left arm." },
   { id: "15", title: "Paramedics ordered to leave",         time: d(11,58,13),                         color: "#FF8C42", text: "The paramedics can be seen reacting to the gunshots. Then they are given orders immediately after the shooting, but not to give emergency first aid to Yong. They are told to turn around and leave." },
-  { id: "16", title: "\"Officer Needs Help\" call",         time: d(11,58,16),                         color: "#FF4444", text: "As Yong lays dying on the ground, Sgt Ruvalcaba issues an \"Officer Needs Help\" call over her radio. This is the most urgent, high-priority radio transmission in law enforcement. It signals that an officer is in immediate, life-threatening danger and requires every available unit within driving distance to respond to their location at maximum speed no matter what they are doing. This call is meant to be triggered when an officer is in a physical fight for their life, heavily outnumbered, taking active gunfire, or seriously injured or incapacitated and cannot defend themselves. No medical assistance is given to Yong." },
-  { id: "17", title: "Paramedics leave with gurney",        time: d(11,58,19),                         color: "#4A9EFF", text: "The paramedics push their gurney out down the driveway and prepare to load it into the ambulance." },
-  { id: "27", title: "Police handcuff Yong",                time: d(11,58,43),                         color: "#FF4444", text: "Police handcuff Yong after he has stopped breathing." },
+  { id: "16", title: "\"Officer Needs Help\" call issued",  time: d(11,58,16),                         color: "#FF4444", text: "After Yong is shot, Sgt Ruvalcaba issues an \"Officer Needs Help\" call over her radio. This is the most urgent, high-priority radio transmission in law enforcement. It signals that an officer is in immediate, life-threatening danger and requires every available unit within driving distance to respond to their location at maximum speed no matter what they are doing. This call is meant to be triggered when an officer is in a physical fight for their life, heavily outnumbered, taking active gunfire, or seriously injured or incapacitated and cannot defend themselves. No medical assistance is given to Yong." },
+  { id: "17", title: "Paramedics leave with gurney",        time: d(11,58,19),                         color: "#4A9EFF", text: "The paramedics take their gurney out down the driveway back to the ambulance." },
+  { id: "27", title: "Officers handcuff Yong",              time: d(11,58,43),                         color: "#FF4444", text: "Police handcuff Yong after he has stopped breathing and has most likely already died." },
   { id: "18", title: "Ambulance leaves the scene",          time: d(11,59,43),                         color: "#4A9EFF", text: "The paramedics leave in the ambulance." },
-  { id: "19", title: "Less-lethal gun removed",             time: d(12,0,50),                          color: "#FF8C42", text: "One of the officers can be seen walking out with the less lethal gun after the shooting." },
+  { id: "19", title: "Officer removes less-lethal gun",     time: d(12,0,50),                          color: "#FF8C42", text: "One of the officers can be seen walking out with the less lethal gun after the shooting." },
   { id: "20", title: "LAFD first team arrives",             time: d(12,6,20),                          color: "#4A9EFF", text: "The first team of LAFD (6 men) arrive and walk in without any urgency 8 minutes after the shooting. The Fire Department is two blocks away." },
   { id: "21", title: "LAFD second team arrives",            time: d(12,10,20),                         color: "#4A9EFF", text: "A second team of firemen (2 men with a gurney) walk in slowly. They don't seem to be in a hurry either." },
-  { id: "22", title: "Yong is declared dead",               time: d(12,12),                            color: "#FF4444", text: "According to the report, this is when Yong is declared dead by the LAFD. Nobody says anything to his parents." },
-  { id: "23", title: "Ponce: \"sorry for your loss\"",      time: d(13,2),                             color: "#4A9EFF", text: "Over an hour after the shooting, Aaron Ponce approaches Dad and says \"Sorry for your loss.\" When asked what happened he says he doesn't know because he wasn't there." },
+  { id: "22", title: "Yong declared dead",                  time: d(12,12),                            color: "#FF4444", text: "According to the report, this is when Yong is declared dead by the LAFD, but nobody says anything to his parents." },
+  { id: "23", title: "Ponce says \"Sorry for your loss\"",  time: d(13,2),                             color: "#4A9EFF", text: "Over an hour after the shooting, Aaron Ponce approaches Dad and says \"Sorry for your loss.\" When asked what happened he says that he doesn't know because he wasn't there." },
   { id: "24", title: "Death reported to Medical Examiner",  time: d(13,59),                            color: "#4A9EFF", text: "LAPD Officer Carrasco 39957 reports Yong'sdeath to the Medical Examiner." },
-  { id: "25", title: "Parents taken to Olympic Station",    time: d(14,43),                            color: "#4A9EFF", text: "Mom & Dad are told to meet with officers at LAPD Olympic station where all their questions will be answered. Sgt Violet Potter 35464, the Family Liaison, accompanies them." },
-  { id: "26", title: "Parents interrogated at FID",         time: d(15,26),     endTime: d(18,28),     color: "#FF8C42", text: "Mom & Dad are kept waiting for over half an hour before they finally begin talking with FID (Force Investigation Division) at Olympic station. Except they don't get a single answer to any of their questions. Instead, they are interrogated for three hours. Meanwhile, a press conference is held back at the apartment, in which Yong is portrayed as a violent man armed with an 11-inch knife who lunged at the officer. The officer had to fire his weapon to protect his own life, and Yong was \"struck,\" and died on the scene. It turns out the knife was 5 inches long and he never lunged at an officer." },
-  { id: "28", title: "Medical Examiner arrives",            time: d(18,7),                             color: "#4A9EFF", text: "Field Medical Examiner Kelly Yagerlener arrives." },
-  { id: "29", title: "Parents return to see Yong's body",  time: d(18,41),                            color: "#4A9EFF", text: "Mom & Dad get back to the street outside their home to meet with Sgt Andrey Wilkins, another Family Liaison, who had promised they would be allowed to see Yong's body before it is transported to the Coroner's Office." },
-  { id: "30", title: "Body taken without family's knowledge", time: d(18,52),                          color: "#FF8C42", text: "Andrey Wilkins tells Mom and Dad that Yong's body was taken \"without his knowing\" and moved to the Coroner's Office by Forensic Attendant Dustin Miranda." },
+  { id: "25", title: "Parents taken to Olympic Station",    time: d(14,43),                            color: "#4A9EFF", text: "Mom & Dad are told to meet with officers at LAPD Olympic station where all their questions will be answered. Sgt Violet Potter 35464, a Family Liaison, accompanies them." },
+  { id: "26", title: "Parents interrogated for 3 hours",    time: d(15,26),     endTime: d(18,28),     color: "#FF8C42", text: "Mom & Dad are kept waiting for over half an hour before they finally begin talking with FID (Force Investigation Division) at Olympic station. None of their questions are answered. Instead, they are interrogated for three hours. Meanwhile, back at the apartment, a press conference is held, in which Yong is portrayed as a violent man armed with an 11-inch knife who lunged at the officer. The officer had to fire his weapon to protect his own life, and Yong was \"struck,\" and died on the scene. It turns out the knife was 5 inches long and he never lunged at an officer." },
+  { id: "28", title: "Medical Examiner arrives",            time: d(18,7),                             color: "#4A9EFF", text: "Field Medical Examiner Kelly Yagerlener arrives to the scene." },
+  { id: "29", title: "Parents return to see Yong's body",   time: d(18,41),                            color: "#4A9EFF", text: "Mom & Dad get back to the street outside their home to meet with Sgt Andrey Wilkins, another Family Liaison, who had promised they would be allowed to see Yong's body before it is transported to the Coroner's Office." },
+  { id: "30", title: "Body inexplicably missing",           time: d(18,52),                            color: "#FF8C42", text: "Andrey Wilkins tells the family that Yong's body has already been moved to the Coroner's Office by Forensic Attendant Dustin Miranda." },
   { id: "31", title: "Scene investigation completed",       time: d(19,30),                            color: "#4A9EFF", text: "Kelly Yagerlener completes the scene investigation accompanied by Lieutenant Brian Kim." },
   { id: "32", title: "Yagerlener speaks with family",       time: d(19,36),                            color: "#4A9EFF", text: "Field Medical Examiner Kelly Yagerlener speaks with Mom and Dad." },
-  { id: "33", title: "Mom and Dad allowed to go back home", time: d(20,21),                            color: "#4A9EFF", text: "Mom and Dad are finally allowed to return to their apartment. All evidence has been wiped clean." },
+  { id: "33", title: "Mom & Dad allowed to go back home",   time: d(20,21),                            color: "#4A9EFF", text: "Mom & Dad are finally allowed to return to their apartment. All evidence has been wiped clean." },
 ];
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -72,6 +73,30 @@ const CARD_H    = 26;
 const LANE_H    = 34;
 const PORTRAIT_TAB_H = 44;
 const MAX_LANES = 3;
+const TAB_GAP = 6;
+
+/** Rough rendered width for lane spacing (10px text + padding). */
+function estimateTabWidth(title: string): number {
+  return Math.min(CARD_W_MAX, Math.max(CARD_W, title.length * 5.5 + 20));
+}
+
+/** Assign horizontal lanes using each tab's rendered width (landscape strip only). */
+function layoutClusterLanes(clusters: Cluster[]): Record<string, number> {
+  const lanes: Record<string, number> = {};
+  const laneLastRight: number[] = [];
+  [...clusters]
+    .sort((a, b) => a.pos - b.pos)
+    .forEach(c => {
+      let lane = 0;
+      while (lane < laneLastRight.length && c.pos < laneLastRight[lane] + TAB_GAP) lane++;
+      const assigned = Math.min(lane, MAX_LANES - 1);
+      const right = c.pos + estimateTabWidth(c.lead.title);
+      if (assigned >= laneLastRight.length) laneLastRight.push(right);
+      else laneLastRight[assigned] = right;
+      lanes[c.lead.id] = assigned;
+    });
+  return lanes;
+}
 
 const SCROLL_ANIM_MS = 950;
 const PANEL_ADJACENT_MS = 600;
@@ -312,18 +337,6 @@ function syncFromCenter(
 
 // ── Canvas ruler ──────────────────────────────────────────────────────────────
 
-function getIntervals(px: number): [number, number] {
-  const STEPS: [number, number][] = [
-    [3600, 3600], [3600, 1800], [3600, 600], [1800, 300],
-    [600, 300], [300, 60], [120, 60], [60, 30], [60, 15],
-    [60, 5], [60, 1],
-  ];
-  for (const [maj, min] of STEPS) {
-    if (min * px >= 8) return [maj, min];
-  }
-  return [60, 1];
-}
-
 function tickLabel(secs: number): string {
   const t = new Date(START_MS + secs * 1000);
   const h = t.getHours() % 12 || 12;
@@ -536,9 +549,13 @@ export default function DayTimeline() {
     wheelRaf: 0,
   });
 
-  const navRef = useRef({
-    selectEvent: (_evt: Evt) => {},
-    selected: null as Evt | null,
+  const navRef = useRef<{
+    selectEvent: (evt: Evt) => void
+    selected: Evt | null
+    panelAnimating: boolean
+  }>({
+    selectEvent: () => {},
+    selected: null,
     panelAnimating: false,
   });
 
@@ -556,6 +573,13 @@ export default function DayTimeline() {
   const [portrait, setPortrait] = useState(false);
   const [cssFullscreen, setCssFullscreen] = useState(false);
   const [nativeFullscreen, setNativeFullscreen] = useState(false);
+  const [portalReady, setPortalReady] = useState(false);
+  const [overlayMetrics, setOverlayMetrics] = useState({
+    top: 0,
+    left: 0,
+    width: 0,
+    height: 0,
+  });
   const fullscreen = cssFullscreen || nativeFullscreen;
 
   useEffect(() => {
@@ -565,16 +589,53 @@ export default function DayTimeline() {
   }, [])
 
   useEffect(() => {
+    setPortalReady(true)
+  }, [])
+
+  useEffect(() => {
     if (!cssFullscreen) return
-    const prev = document.body.style.overflow
+    const scrollY = window.scrollY
+    const prevOverflow = document.body.style.overflow
+    const prevPosition = document.body.style.position
+    const prevTop = document.body.style.top
+    const prevWidth = document.body.style.width
     document.body.style.overflow = "hidden"
+    document.body.style.position = "fixed"
+    document.body.style.top = `-${scrollY}px`
+    document.body.style.width = "100%"
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") setCssFullscreen(false)
     }
     window.addEventListener("keydown", onKey)
     return () => {
-      document.body.style.overflow = prev
+      document.body.style.overflow = prevOverflow
+      document.body.style.position = prevPosition
+      document.body.style.top = prevTop
+      document.body.style.width = prevWidth
+      window.scrollTo(0, scrollY)
       window.removeEventListener("keydown", onKey)
+    }
+  }, [cssFullscreen])
+
+  useEffect(() => {
+    if (!cssFullscreen) return
+    const syncOverlay = () => {
+      const vv = window.visualViewport
+      setOverlayMetrics({
+        top: vv?.offsetTop ?? 0,
+        left: vv?.offsetLeft ?? 0,
+        width: vv?.width ?? window.innerWidth,
+        height: vv?.height ?? window.innerHeight,
+      })
+    }
+    syncOverlay()
+    window.visualViewport?.addEventListener("resize", syncOverlay)
+    window.visualViewport?.addEventListener("scroll", syncOverlay)
+    window.addEventListener("resize", syncOverlay)
+    return () => {
+      window.visualViewport?.removeEventListener("resize", syncOverlay)
+      window.visualViewport?.removeEventListener("scroll", syncOverlay)
+      window.removeEventListener("resize", syncOverlay)
     }
   }, [cssFullscreen])
 
@@ -590,6 +651,14 @@ export default function DayTimeline() {
         (document as Document & { webkitExitFullscreen?: () => Promise<void> })
           .webkitExitFullscreen?.bind(document)
       if (exit) void exit()
+      return
+    }
+    // Native fullscreen ignores Firefox/Chrome responsive viewport frames and
+    // expands to the real browser window — use a fixed overlay on narrow viewports.
+    const useOverlay =
+      p.current.portrait || window.matchMedia("(max-width: 768px)").matches
+    if (useOverlay) {
+      setCssFullscreen(true)
       return
     }
     const el = outerRef.current
@@ -1087,19 +1156,10 @@ export default function DayTimeline() {
   const visible = EVENTS.map(evt => ({
     evt,
     x: (evt.time.getTime() - START_MS) / 1000 * px - off,
-  })).filter(({ x }) => x >= -(CARD_W + 20) && x <= vpW + 20);
+  })).filter(({ x }) => x >= -(CARD_W_MAX + 20) && x <= vpW + CARD_W_MAX + 20);
 
   const clusters = buildClusters(visible.map(({ evt, x }) => ({ evt, pos: x })));
-  const clusterLanes: Record<string, number> = {};
-  const laneLastX: number[] = [-CARD_W * 2];
-  [...clusters].sort((a, b) => a.pos - b.pos).forEach(c => {
-    let lane = 0;
-    while (lane < laneLastX.length && c.pos - laneLastX[lane] < CARD_W + 6) lane++;
-    const assigned = Math.min(lane, MAX_LANES - 1);
-    if (lane >= laneLastX.length) laneLastX.push(c.pos);
-    else laneLastX[assigned] = c.pos;
-    clusterLanes[c.lead.id] = assigned;
-  });
+  const clusterLanes = layoutClusterLanes(clusters);
 
 
   const visibleV = EVENTS.map(evt => ({
@@ -1161,8 +1221,40 @@ export default function DayTimeline() {
   const hasPrev = selectedIdx > 0;
   const hasNext = selectedIdx >= 0 && selectedIdx < EVENTS.length - 1;
 
+  const logNavHit = useCallback((
+    target: "prev" | "next" | "fullscreen",
+    e: React.PointerEvent<HTMLButtonElement>,
+  ) => {
+    if (portrait) return;
+    const rect = e.currentTarget.getBoundingClientRect();
+    const outerRect = outerRef.current?.getBoundingClientRect();
+    // #region agent log
+    fetch("http://127.0.0.1:7812/ingest/82c59420-cbac-47e0-a760-9212b86396d3", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "7a9393" },
+      body: JSON.stringify({
+        sessionId: "7a9393",
+        runId: "post-fix",
+        hypothesisId: target === "next" ? "A" : target === "fullscreen" ? "B" : "C",
+        location: "DayTimeline.tsx:nav-hit",
+        message: "nav pointer target",
+        data: {
+          target,
+          clientX: e.clientX,
+          clientY: e.clientY,
+          btnRect: { top: rect.top, right: rect.right, bottom: rect.bottom, left: rect.left, w: rect.width, h: rect.height },
+          outerRect: outerRect ? { top: outerRect.top, right: outerRect.right } : null,
+          nearTopRight: outerRect ? e.clientX > outerRect.right - 60 && e.clientY < outerRect.top + 60 : false,
+          selected: !!selected,
+        },
+        timestamp: Date.now(),
+      }),
+    }).catch(() => {});
+    // #endregion
+  }, [portrait, selected]);
+
   const navBtnClass =
-    "absolute top-0 bottom-0 z-20 w-11 sm:w-12 flex items-center justify-center text-white/25 hover:text-white/70 disabled:opacity-20 disabled:pointer-events-none transition-colors cursor-pointer";
+    "absolute top-1/2 -translate-y-1/2 z-20 w-[50px] h-[50px] flex items-center justify-center text-white/25 hover:text-white/70 disabled:opacity-20 disabled:pointer-events-none transition-colors cursor-pointer";
 
   const renderEventMedia = (evt: Evt, isActive: boolean) => {
     const media = mediaForEvent(evt.id);
@@ -1257,7 +1349,10 @@ export default function DayTimeline() {
         <>
           <button
             type="button"
-            onPointerDown={(e) => e.stopPropagation()}
+            onPointerDown={(e) => {
+              e.stopPropagation();
+              logNavHit("prev", e);
+            }}
             onClick={() => hasPrev && selectEvent(EVENTS[selectedIdx - 1])}
             disabled={!hasPrev}
             className={`${navBtnClass} left-0`}
@@ -1269,7 +1364,10 @@ export default function DayTimeline() {
           </button>
           <button
             type="button"
-            onPointerDown={(e) => e.stopPropagation()}
+            onPointerDown={(e) => {
+              e.stopPropagation();
+              logNavHit("next", e);
+            }}
             onClick={() => hasNext && selectEvent(EVENTS[selectedIdx + 1])}
             disabled={!hasNext}
             className={`${navBtnClass} right-0`}
@@ -1280,7 +1378,7 @@ export default function DayTimeline() {
             </svg>
           </button>
 
-          <div ref={panelVpRef} className="absolute inset-x-11 sm:inset-x-12 inset-y-0 overflow-hidden">
+          <div ref={panelVpRef} className="absolute inset-x-[50px] inset-y-0 overflow-hidden">
             {shownEvt && panelVpW > 0 && (
               <div
                 ref={sliderRef}
@@ -1405,11 +1503,23 @@ export default function DayTimeline() {
 
   // ── Render ────────────────────────────────────────────────────────────────────
 
-  return (
+  const overlayStyle = cssFullscreen
+    ? {
+        background: "#111827",
+        position: "fixed" as const,
+        top: overlayMetrics.height ? overlayMetrics.top : 0,
+        left: overlayMetrics.height ? overlayMetrics.left : 0,
+        width: overlayMetrics.width || "100%",
+        height: overlayMetrics.height || "100%",
+        zIndex: 9999,
+      }
+    : { background: "#111827" }
+
+  const timeline = (
     <div
       ref={outerRef}
-      className={`relative flex ${portrait ? "flex-row" : "flex-col"} ${fullscreen ? "rounded-none h-dvh w-full" : "rounded-xl"} overflow-hidden border border-white/10 cursor-grab active:cursor-grabbing select-none touch-none ${fullscreen ? "" : portrait ? "h-dvh" : "aspect-video"}`}
-      style={{ background: "#111827", ...(cssFullscreen ? { position: "fixed" as const, top: 0, right: 0, bottom: 0, left: 0, zIndex: 9999 } : {}) }}
+      className={`relative flex ${portrait ? "flex-row" : "flex-col"} ${cssFullscreen ? "rounded-none h-full w-full" : fullscreen ? "rounded-none h-dvh w-full" : "rounded-xl"} overflow-hidden ${cssFullscreen ? "border-0" : "border border-white/10"} cursor-grab active:cursor-grabbing select-none touch-none ${cssFullscreen ? "" : fullscreen ? "" : portrait ? "h-dvh" : "aspect-video"}`}
+      style={overlayStyle}
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
@@ -1417,7 +1527,10 @@ export default function DayTimeline() {
     >
       <button
         type="button"
-        onPointerDown={(e) => e.stopPropagation()}
+        onPointerDown={(e) => {
+          e.stopPropagation();
+          logNavHit("fullscreen", e);
+        }}
         onClick={(e) => {
           e.stopPropagation()
           toggleFullscreen()
@@ -1656,5 +1769,19 @@ export default function DayTimeline() {
         </>
       )}
     </div>
-  );
+  )
+
+  if (cssFullscreen && portalReady) {
+    return (
+      <>
+        <div
+          aria-hidden
+          className={`rounded-xl ${portrait ? "h-dvh w-full" : "aspect-video w-full"}`}
+        />
+        {createPortal(timeline, document.body)}
+      </>
+    )
+  }
+
+  return timeline
 }
