@@ -574,12 +574,6 @@ export default function DayTimeline() {
   const [cssFullscreen, setCssFullscreen] = useState(false);
   const [nativeFullscreen, setNativeFullscreen] = useState(false);
   const [portalReady, setPortalReady] = useState(false);
-  const [overlayMetrics, setOverlayMetrics] = useState({
-    top: 0,
-    left: 0,
-    width: 0,
-    height: 0,
-  });
   const fullscreen = cssFullscreen || nativeFullscreen;
 
   useEffect(() => {
@@ -594,48 +588,15 @@ export default function DayTimeline() {
 
   useEffect(() => {
     if (!cssFullscreen) return
-    const scrollY = window.scrollY
-    const prevOverflow = document.body.style.overflow
-    const prevPosition = document.body.style.position
-    const prevTop = document.body.style.top
-    const prevWidth = document.body.style.width
+    const prev = document.body.style.overflow
     document.body.style.overflow = "hidden"
-    document.body.style.position = "fixed"
-    document.body.style.top = `-${scrollY}px`
-    document.body.style.width = "100%"
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") setCssFullscreen(false)
     }
     window.addEventListener("keydown", onKey)
     return () => {
-      document.body.style.overflow = prevOverflow
-      document.body.style.position = prevPosition
-      document.body.style.top = prevTop
-      document.body.style.width = prevWidth
-      window.scrollTo(0, scrollY)
+      document.body.style.overflow = prev
       window.removeEventListener("keydown", onKey)
-    }
-  }, [cssFullscreen])
-
-  useEffect(() => {
-    if (!cssFullscreen) return
-    const syncOverlay = () => {
-      const vv = window.visualViewport
-      setOverlayMetrics({
-        top: vv?.offsetTop ?? 0,
-        left: vv?.offsetLeft ?? 0,
-        width: vv?.width ?? window.innerWidth,
-        height: vv?.height ?? window.innerHeight,
-      })
-    }
-    syncOverlay()
-    window.visualViewport?.addEventListener("resize", syncOverlay)
-    window.visualViewport?.addEventListener("scroll", syncOverlay)
-    window.addEventListener("resize", syncOverlay)
-    return () => {
-      window.visualViewport?.removeEventListener("resize", syncOverlay)
-      window.visualViewport?.removeEventListener("scroll", syncOverlay)
-      window.removeEventListener("resize", syncOverlay)
     }
   }, [cssFullscreen])
 
@@ -890,7 +851,7 @@ export default function DayTimeline() {
     const ro = new ResizeObserver(measure);
     ro.observe(el);
     return () => ro.disconnect();
-  }, [selected, applyPanelTransform, portrait]);
+  }, [selected, applyPanelTransform, portrait, cssFullscreen]);
 
   // ── Init + resize ────────────────────────────────────────────────────────────
 
@@ -916,7 +877,7 @@ export default function DayTimeline() {
     ro.observe(el);
     const state = p.current;
     return () => { ro.disconnect(); state.vpW = 0; };
-  }, [clampState, syncView, portrait]);
+  }, [clampState, syncView, portrait, cssFullscreen]);
 
   // Remeasure when entering/exiting fullscreen (native or CSS fallback)
   useEffect(() => {
@@ -929,7 +890,7 @@ export default function DayTimeline() {
       clampState();
       syncView();
     };
-    const id = requestAnimationFrame(remeasure);
+    const id = requestAnimationFrame(() => requestAnimationFrame(remeasure));
     return () => cancelAnimationFrame(id);
   }, [fullscreen, portrait, clampState, syncView]);
 
@@ -991,7 +952,7 @@ export default function DayTimeline() {
     };
     el.addEventListener("wheel", onWheel, { passive: false });
     return () => el.removeEventListener("wheel", onWheel);
-  }, [clampState, syncView, triggerZoom]);
+  }, [clampState, syncView, triggerZoom, cssFullscreen]);
 
   // ── Mouse / stylus drag ────────────────────────────────────────────────────────
 
@@ -1139,7 +1100,7 @@ export default function DayTimeline() {
       el.removeEventListener("touchend",   onTouchEnd);
       el.removeEventListener("touchcancel",onTouchEnd);
     };
-  }, [clampState, syncView, startFling]);
+  }, [clampState, syncView, startFling, cssFullscreen]);
 
   useEffect(() => () => {
     cancelAnimationFrame(p.current.animRaf);
@@ -1507,10 +1468,7 @@ export default function DayTimeline() {
     ? {
         background: "#111827",
         position: "fixed" as const,
-        top: overlayMetrics.height ? overlayMetrics.top : 0,
-        left: overlayMetrics.height ? overlayMetrics.left : 0,
-        width: overlayMetrics.width || "100%",
-        height: overlayMetrics.height || "100%",
+        inset: 0,
         zIndex: 9999,
       }
     : { background: "#111827" }
