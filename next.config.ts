@@ -22,14 +22,21 @@ const nextConfig: NextConfig = {
       { source: "/youtube-playlist", destination: "/videos", permanent: true },
       { source: "/youtube-channel", destination: "/videos", permanent: true },
       { source: "/video-playlists", destination: "/videos", permanent: true },
-      // News categories
-      { source: "/category/news-english", destination: "/news/english", permanent: true },
-      { source: "/category/news-korean", destination: "/news/korean", permanent: true },
-      { source: "/category/news-english/:slug", destination: "/news/english/:slug", permanent: true },
-      { source: "/category/news-korean/:slug", destination: "/news/korean/:slug", permanent: true },
-      // Events
-      { source: "/category/event-history-photo-galleries", destination: "/events", permanent: true },
-      { source: "/event-history-photo-galleries/:slug", destination: "/events/:slug", permanent: true },
+      // New IA — curated pages replace mega-archives
+      { source: "/news", destination: "/press", permanent: true },
+      { source: "/news/:path*", destination: "/press", permanent: true },
+      { source: "/references", destination: "/get-involved", permanent: true },
+      { source: "/references/:path*", destination: "/get-involved", permanent: true },
+      // News categories (legacy WordPress)
+      { source: "/category/news-english", destination: "/press", permanent: true },
+      { source: "/category/news-korean", destination: "/press#korean", permanent: true },
+      { source: "/category/news-english/:slug", destination: "/press", permanent: true },
+      { source: "/category/news-korean/:slug", destination: "/press#korean", permanent: true },
+      { source: "/news-english/:path*", destination: "/press", permanent: true },
+      { source: "/news-korean/:path*", destination: "/press#korean", permanent: true },
+      // Events galleries (legacy WordPress)
+      { source: "/category/event-history-photo-galleries", destination: "/community", permanent: true },
+      { source: "/event-history-photo-galleries/:slug", destination: "/community", permanent: true },
       // References
       { source: "/category/references", destination: "/references", permanent: true },
       { source: "/category/references/:path*", destination: "/references", permanent: true },

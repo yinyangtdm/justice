@@ -12,8 +12,6 @@
     "docker:dev": "docker compose up"
   },
   "dependencies": {
-    "context7": "^1.0.3",
-    "mcp": "^1.4.2",
     "next": "15.5.18",
     "react": "19.1.0",
     "react-dom": "19.1.0"

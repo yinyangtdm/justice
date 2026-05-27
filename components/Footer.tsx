@@ -1,14 +1,19 @@
-import Link from "next/link";
+import Link from "next/link"
 
-const links = [
-  { label: "Yong's Story", href: "/yong" },
+const primaryLinks = [
+  { label: "Timeline", href: "/#timeline" },
+  { label: "Remember Yong", href: "/yong" },
   { label: "Legal Cases", href: "/legal" },
-  { label: "Events & Rallies", href: "/events" },
+  { label: "Community", href: "/community" },
+  { label: "Press", href: "/press" },
+  { label: "Get Involved", href: "/get-involved" },
+]
+
+const secondaryLinks = [
+  { label: "What Happened", href: "/what-happened" },
   { label: "Art for Yong", href: "/art" },
-  { label: "News", href: "/news" },
-  { label: "References", href: "/references" },
   { label: "Videos", href: "/videos" },
-];
+]
 
 const social = [
   {
@@ -20,20 +25,20 @@ const social = [
       </svg>
     ),
   },
-];
+]
 
 export default function Footer() {
   return (
     <footer className="border-t border-border mt-8">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-12">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-10">
-          {/* Brand */}
           <div>
             <p className="font-serif text-xl font-bold text-foreground mb-3">
               Justice for <span className="text-accent">Yong Yang</span>
             </p>
             <p className="text-sm text-muted leading-relaxed">
-              Yong Yang was killed by LAPD on May 2, 2024. This site documents the ongoing fight for justice, accountability, and truth.
+              Yong Yang was killed by LAPD on May 2, 2024 during a mental health crisis. This site
+              documents the truth and the fight for justice.
             </p>
             <div className="flex gap-3 mt-4">
               {social.map((s) => (
@@ -51,13 +56,12 @@ export default function Footer() {
             </div>
           </div>
 
-          {/* Navigation */}
           <div>
             <h3 className="text-xs font-semibold uppercase tracking-widest text-muted mb-4">
-              Pages
+              Explore
             </h3>
             <ul className="space-y-2">
-              {links.map((l) => (
+              {primaryLinks.map((l) => (
                 <li key={l.href}>
                   <Link
                     href={l.href}
@@ -68,38 +72,50 @@ export default function Footer() {
                 </li>
               ))}
             </ul>
+            <ul className="space-y-2 mt-4 pt-4 border-t border-border">
+              {secondaryLinks.map((l) => (
+                <li key={l.href}>
+                  <Link
+                    href={l.href}
+                    className="text-xs text-[#5a5040] hover:text-muted transition-colors"
+                  >
+                    {l.label}
+                  </Link>
+                </li>
+              ))}
+            </ul>
           </div>
 
-          {/* Legal */}
           <div>
             <h3 className="text-xs font-semibold uppercase tracking-widest text-muted mb-4">
-              Cases
+              Legal Cases
             </h3>
             <ul className="space-y-2">
               <li>
-                <Link href="/legal/civil-petition" className="text-sm text-[#7a7060] hover:text-accent transition-colors">
-                  24STCP02107 – Civil Petition
+                <Link
+                  href="/legal/federal-lawsuit"
+                  className="text-sm text-[#7a7060] hover:text-accent transition-colors"
+                >
+                  2:26-cv-01014 — Federal
                 </Link>
               </li>
               <li>
-                <Link href="/legal/civil-lawsuit" className="text-sm text-[#7a7060] hover:text-accent transition-colors">
-                  24STCV24804 – Civil Lawsuit
+                <Link
+                  href="/legal/civil-lawsuit"
+                  className="text-sm text-[#7a7060] hover:text-accent transition-colors"
+                >
+                  24STCV24804 — Civil Lawsuit
                 </Link>
               </li>
               <li>
-                <Link href="/legal/federal-lawsuit" className="text-sm text-[#7a7060] hover:text-accent transition-colors">
-                  26-cv-01014 – Federal Lawsuit
+                <Link
+                  href="/legal/civil-petition"
+                  className="text-sm text-[#7a7060] hover:text-accent transition-colors"
+                >
+                  24STCP02107 — Bodycam Petition
                 </Link>
               </li>
             </ul>
-            <div className="mt-6 pt-4 border-t border-    border">
-              <Link href="/privacy-policy" className="text-xs text-[#4a4540] hover:text-muted transition-colors mr-4">
-                Privacy Policy
-              </Link>
-              <Link href="/terms" className="text-xs text-[#4a4540] hover:text-muted transition-colors">
-                Terms
-              </Link>
-            </div>
           </div>
         </div>
 
@@ -110,5 +126,5 @@ export default function Footer() {
         </div>
       </div>
     </footer>
-  );
+  )
 }

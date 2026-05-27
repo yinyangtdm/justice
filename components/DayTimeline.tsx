@@ -84,39 +84,6 @@ const clusterR  = (n: number) => n > 1 ? DOT_R + 2 : DOT_R;
 
 interface Cluster { evts: Evt[]; lead: Evt; pos: number; r: number; }
 
-function estimateCardW(title: string): number {
-  return Math.min(CARD_W_MAX, Math.max(CARD_W, title.length * 6.5 + 20));
-}
-
-/** Push tag cards apart horizontally; dots stay at anchor pos. */
-function layoutTagOffsetsX(clusters: Cluster[]): Record<string, number> {
-  const sorted = [...clusters].sort((a, b) => a.pos - b.pos);
-  if (!sorted.length) return {};
-
-  const items = sorted.map(c => ({
-    id: c.lead.id,
-    anchorX: c.pos,
-    width: estimateCardW(c.lead.title),
-    offset: 0,
-  }));
-
-  for (let i = 1; i < items.length; i++) {
-    const prev = items[i - 1];
-    const cur = items[i];
-    const minLeft = prev.anchorX + prev.offset + prev.width + 8;
-    const curLeft = cur.anchorX + cur.offset;
-    if (curLeft < minLeft) cur.offset = minLeft - cur.anchorX;
-  }
-
-  for (let i = items.length - 2; i >= 0; i--) {
-    const cur = items[i];
-    const next = items[i + 1];
-    const maxOffset = next.anchorX + next.offset - cur.width - 8 - cur.anchorX;
-    if (cur.offset > maxOffset) cur.offset = Math.max(0, maxOffset);
-  }
-
-  return Object.fromEntries(items.map(i => [i.id, i.offset]));
-}
 
 /** Push portrait tabs apart vertically; strip dots stay at anchor pos. */
 function layoutTabOffsetsY(clusters: Cluster[]): Record<string, number> {
@@ -368,7 +335,7 @@ function tickLabel(secs: number): string {
   return `${h} ${ap}`;
 }
 
-const RULER_LABEL_STEPS = [3600, 1800, 900, 300, 60, 30, 15, 5, 1];
+const RULER_LABEL_STEPS = [3600, 1800, 900, 300, 60, 30, 15, 1];
 const RULER_LABEL_MIN_PX = 36;
 const RULER_LABEL_MAX_COUNT = 12;
 const RULER_LABEL_EDGE = 8;
@@ -442,11 +409,11 @@ function buildRulerLabels(
   return labels;
 }
 
-/** Grab-pan: content follows finger. Portrait wheel uses inverted deltaY to match. */
+/** Grab-pan: content follows finger. Portrait and landscape wheel use standard signs for scrolling. */
 const panDelta = (portrait: boolean, e: WheelEvent) =>
   portrait
-    ? -e.deltaY
-    : Math.abs(e.deltaX) > Math.abs(e.deltaY) ? -e.deltaX : e.deltaY;
+    ? e.deltaY
+    : Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
 
 const RULER_TICKS = [
   { s: 1,    h: 3,  op: 0.15, w: 0.5 },
@@ -521,7 +488,7 @@ function fmt12(t: Date) {
 function fmtRelToShoot(time: Date): string {
   const diffMs   = time.getTime() - SHOOT_MS;
   const totalSec = Math.round(Math.abs(diffMs) / 1000);
-  if (totalSec === 0) return "at the shooting";
+  if (totalSec === 0) return "The shooting";
   const dir = diffMs < 0 ? "before" : "after";
   if (totalSec < 60) return `${totalSec} second${totalSec === 1 ? "" : "s"} ${dir} the shooting`;
   const mins = Math.floor(totalSec / 60);
@@ -592,20 +559,51 @@ export default function DayTimeline() {
   const fullscreen = cssFullscreen || nativeFullscreen;
 
   useEffect(() => {
-    const onChange = () => setNativeFullscreen(!!document.fullscreenElement);
-    document.addEventListener("fullscreenchange", onChange);
-    return () => document.removeEventListener("fullscreenchange", onChange);
-  }, []);
+    const onChange = () => setNativeFullscreen(!!document.fullscreenElement)
+    document.addEventListener("fullscreenchange", onChange)
+    return () => document.removeEventListener("fullscreenchange", onChange)
+  }, [])
+
+  useEffect(() => {
+    if (!cssFullscreen) return
+    const prev = document.body.style.overflow
+    document.body.style.overflow = "hidden"
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setCssFullscreen(false)
+    }
+    window.addEventListener("keydown", onKey)
+    return () => {
+      document.body.style.overflow = prev
+      window.removeEventListener("keydown", onKey)
+    }
+  }, [cssFullscreen])
 
   const toggleFullscreen = useCallback(() => {
-    if (cssFullscreen) { setCssFullscreen(false); return; }
-    if (nativeFullscreen) { document.exitFullscreen(); return; }
-    if (outerRef.current?.requestFullscreen) {
-      outerRef.current.requestFullscreen().catch(() => setCssFullscreen(true));
-    } else {
-      setCssFullscreen(true);
+    if (cssFullscreen) {
+      setCssFullscreen(false)
+      return
     }
-  }, [cssFullscreen, nativeFullscreen]);
+    const fsEl = document.fullscreenElement
+    if (nativeFullscreen || fsEl) {
+      const exit =
+        document.exitFullscreen?.bind(document) ??
+        (document as Document & { webkitExitFullscreen?: () => Promise<void> })
+          .webkitExitFullscreen?.bind(document)
+      if (exit) void exit()
+      return
+    }
+    const el = outerRef.current
+    if (!el) return
+    const req =
+      el.requestFullscreen?.bind(el) ??
+      (el as HTMLElement & { webkitRequestFullscreen?: () => Promise<void> })
+        .webkitRequestFullscreen?.bind(el)
+    if (req) {
+      req().catch(() => setCssFullscreen(true))
+    } else {
+      setCssFullscreen(true)
+    }
+  }, [cssFullscreen, nativeFullscreen])
 
   useEffect(() => {
     const mq = window.matchMedia("(orientation: portrait)");
@@ -851,6 +849,21 @@ export default function DayTimeline() {
     return () => { ro.disconnect(); state.vpW = 0; };
   }, [clampState, syncView, portrait]);
 
+  // Remeasure when entering/exiting fullscreen (native or CSS fallback)
+  useEffect(() => {
+    const el = scrubRef.current;
+    if (!el) return;
+    const remeasure = () => {
+      const w = p.current.portrait ? el.clientHeight : el.clientWidth;
+      if (w <= 0) return;
+      p.current.vpW = w;
+      clampState();
+      syncView();
+    };
+    const id = requestAnimationFrame(remeasure);
+    return () => cancelAnimationFrame(id);
+  }, [fullscreen, portrait, clampState, syncView]);
+
   // ── Canvas draw ──────────────────────────────────────────────────────────────
 
   useEffect(() => {
@@ -1088,14 +1101,6 @@ export default function DayTimeline() {
     clusterLanes[c.lead.id] = assigned;
   });
 
-  const tagOffsetX: Record<string, number> = {};
-  for (let lane = 0; lane < MAX_LANES; lane++) {
-    const inLane = clusters.filter(c => (clusterLanes[c.lead.id] ?? 0) === lane);
-    // Only lay out tags whose anchor dot is on-screen — off-screen events must not
-    // push on-screen tags (and must not be pulled left by viewport clamping).
-    const onScreen = inLane.filter(c => c.pos >= -8 && c.pos <= vpW + 8);
-    Object.assign(tagOffsetX, layoutTagOffsetsX(onScreen));
-  }
 
   const visibleV = EVENTS.map(evt => ({
     evt,
@@ -1403,7 +1408,7 @@ export default function DayTimeline() {
   return (
     <div
       ref={outerRef}
-      className={`relative flex ${portrait ? "flex-row" : "flex-col"} ${fullscreen ? "rounded-none" : "rounded-xl"} overflow-hidden border border-white/10 cursor-grab active:cursor-grabbing select-none touch-none ${cssFullscreen ? "" : portrait ? "h-dvh" : "aspect-video"}`}
+      className={`relative flex ${portrait ? "flex-row" : "flex-col"} ${fullscreen ? "rounded-none h-dvh w-full" : "rounded-xl"} overflow-hidden border border-white/10 cursor-grab active:cursor-grabbing select-none touch-none ${fullscreen ? "" : portrait ? "h-dvh" : "aspect-video"}`}
       style={{ background: "#111827", ...(cssFullscreen ? { position: "fixed" as const, top: 0, right: 0, bottom: 0, left: 0, zIndex: 9999 } : {}) }}
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
@@ -1411,8 +1416,12 @@ export default function DayTimeline() {
       onPointerLeave={onPointerUp}
     >
       <button
+        type="button"
         onPointerDown={(e) => e.stopPropagation()}
-        onClick={toggleFullscreen}
+        onClick={(e) => {
+          e.stopPropagation()
+          toggleFullscreen()
+        }}
         className="absolute top-2 right-2 z-20 text-white/30 hover:text-white/70 transition-colors p-1.5 rounded cursor-pointer"
         aria-label={fullscreen ? "Exit fullscreen" : "Enter fullscreen"}
       >
@@ -1544,7 +1553,6 @@ export default function DayTimeline() {
               const { lead, pos: x, r, evts } = cluster;
               const lane = clusterLanes[lead.id] ?? 0;
               const isSel = evts.some(e => selected?.id === e.id);
-              const tagOffset = tagOffsetX[lead.id] ?? 0;
               const cardBot = LINE_Y - DOT_R - 6 - lane * LANE_H;
               const cardTop = cardBot - CARD_H;
               const stemH   = Math.max(0, LINE_Y - DOT_R - 4 - cardBot);
@@ -1554,10 +1562,10 @@ export default function DayTimeline() {
                     className="absolute focus:outline-none cursor-pointer"
                     onPointerDown={(e) => e.stopPropagation()}
                     style={{
-                      left: x + tagOffset,
+                      left: x,
                       top: Math.max(0, cardTop - 2),
                       height: CARD_H + 6,
-                      zIndex: isSel ? 2 : 1,
+                      zIndex: isSel ? 10 : 1 + (COLOR_PRI[lead.color] ?? 0),
                       overflow: "visible",
                       animation: "tl-card-in 0.2s ease-out forwards",
                     }}
@@ -1596,30 +1604,16 @@ export default function DayTimeline() {
                       </span>
                     </div>
                     {stemH > 0 && (
-                      <>
-                        {tagOffset > 0 && (
-                          <div
-                            className="absolute pointer-events-none"
-                            style={{
-                              left: -tagOffset + DOT_R,
-                              top: CARD_H + 4,
-                              width: tagOffset,
-                              height: 1,
-                              background: `${lead.color}44`,
-                            }}
-                          />
-                        )}
-                        <div
-                          className="absolute pointer-events-none"
-                          style={{
-                            left: -tagOffset + DOT_R - 0.5,
-                            top: CARD_H + 4,
-                            width: 1,
-                            height: stemH,
-                            background: `linear-gradient(to bottom, ${lead.color}55, ${lead.color}1a)`,
-                          }}
-                        />
-                      </>
+                      <div
+                        className="absolute pointer-events-none"
+                        style={{
+                          left: DOT_R - 0.5,
+                          top: CARD_H + 4,
+                          width: 1,
+                          height: stemH,
+                          background: `linear-gradient(to bottom, ${lead.color}55, ${lead.color}1a)`,
+                        }}
+                      />
                     )}
                   </button>
                   <div

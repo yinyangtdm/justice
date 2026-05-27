@@ -1,0 +1,29 @@
+---
+description: Site mission, DayTimeline architecture, and media workflow for Justice for Yong
+alwaysApply: true
+---
+
+# Justice for Yong — mission & timeline
+
+## Why this site exists
+
+Memorial and advocacy site for **Yong Yang** (twin brother), killed by LAPD May 2, 2024 during a mental health crisis. Goals: **simpler navigation**, **SEO**, honor his memory, and make the **documented truth** reachable — especially footage most people have never seen (shooting, no aid, handcuffing after he stopped breathing). Tone: factual, shocking evidence available but not forced on visitors.
+
+## DayTimeline (`components/DayTimeline.tsx`)
+
+- Interactive May 2 timeline (8 AM–10 PM); used on `/what-happened` and `/timeline`
+- **Story** lives in `EVENTS` array (id, title, time, text, color) — edit here
+- **Media** lives in `data/timeline-media-map.json` → `npm run timeline:media` → `lib/timeline-media.ts` — do not hand-edit generated lib
+- Colors: blue `#4A9EFF` procedural, orange `#FF8C42` concerning, red `#FF4444` shooting/aftermath
+- Auto-zoom zones: ~10:52 (Yoon/911) and ~11:54–12:01 (shooting cluster)
+- Key evidence events: **14** shoots, **15–17** paramedics leave, **27** handcuff/stopped breathing (LAPD YouTube clip), **22** declared dead
+- `fmtRelToShoot()` labels events relative to 11:58:03 shooting
+- Prefer **YouTube/Vimeo embeds** over self-hosted MP4s unless explicitly requested
+
+## Media from original site
+
+Knight Lab sheet → `data/timeline-source.csv`. Run `npm run timeline:media` for Flickr images, Vimeo thumbs, and optional downloads. LAPD bodycam is separate in `timeline-media-map.json` youtube section.
+
+## Dev cautions
+
+One change at a time in `DayTimeline.tsx`; verify in browser; revert don't repair (`CLAUDE.md`).
