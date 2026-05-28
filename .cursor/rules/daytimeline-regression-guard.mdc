@@ -1,0 +1,72 @@
+---
+description: DayTimeline invariants — prevents recurring responsive, layout, and lane bugs
+globs: components/DayTimeline.tsx
+alwaysApply: false
+---
+
+# DayTimeline regression guard
+
+These bugs have come back multiple times. **Read before editing** `DayTimeline.tsx`.
+
+## Bug log (required)
+
+**File:** `docs/daytimeline-bug-log.md`
+
+1. **Before editing** — skim the log table; do not reintroduce listed root causes.
+2. **When a change causes a bug** (even if you fix it immediately) — **append a row** to the log: symptom, what changed, root cause, fix, and any new invariant.
+3. **If the fix is a new invariant** — add it to this rule and the pre-merge checklist below.
+
+Do not treat fixes as done until the log is updated.
+
+## Workflow (non-negotiable)
+
+1. **One change at a time** — layout, zones, and panel are coupled; never batch unrelated edits.
+2. **Verify in browser before the next change** — use the checklist below.
+3. **Revert, don't repair** if anything breaks (`CLAUDE.md`).
+
+## Compact layout (most common regression)
+
+**Narrow ≠ desktop landscape.** DevTools responsive mode often sets a narrow width with landscape orientation.
+
+- Use **one** constant for compact/mobile layout:
+  `COMPACT_LAYOUT_MQ = "(orientation: portrait), (max-width: 768px)"`
+- The `portrait` state **must** follow this MQ (not `(orientation: portrait)` alone).
+- Fullscreen overlay logic must use the same compact signal — do not duplicate a separate `(max-width: 768px)` check elsewhere.
+
+When compact: vertical strip + **stacked** event panel (`selected && portrait` branch).
+When wide desktop only: side-by-side `renderEventContent` (`selected && !portrait`).
+
+## Height & overflow
+
+- **In-page** timeline (not fullscreen/cssFullscreen): **never** `h-dvh` — it stacks under the site header and overflows the page. Use capped height, e.g. `h-[min(720px,calc(100dvh-8rem))]`.
+- Root timeline wrapper: `w-full max-w-full min-w-0 overflow-hidden`.
+- Event panel row/columns: `min-w-0`, `overflow-hidden` on the flex row; description column `overflow-y-auto`.
+
+## Event media (landscape panel)
+
+Width-first sizing only:
+
+```tsx
+// ✅ GOOD — landscape event panel media box
+"relative w-full max-h-full min-h-0 aspect-video ..."
+
+// ❌ BAD — causes horizontal overflow in side-by-side panel
+"relative h-full max-w-full w-auto aspect-video ..."
+```
+
+## Tab lanes (shooting cluster)
+
+In `layoutClusterLanes`: sort clusters by **`COLOR_PRI` desc**, then position. Assign lanes 0→2 in order — **do not** `Math.min(lane, 2)` pile multiple reds into one lane.
+
+## Pre-merge browser checklist
+
+On `/timeline` after **any** DayTimeline edit:
+
+| Viewport | Check |
+|----------|--------|
+| 375×812 (portrait) | No horizontal scroll; timeline fits page |
+| 667×375 (narrow landscape) | Compact layout (stacked panel), not side-by-side |
+| ~800×600 + event with video selected | No horizontal overflow; media fits column |
+| ~11:58 strip, crowded reds | Red tabs in separate lanes, not stacked |
+
+If a fix touches global overflow (`app/layout.tsx` `overflow-x-hidden`), note why — do not remove without re-running this checklist.

@@ -27,3 +27,5 @@ Knight Lab sheet → `data/timeline-source.csv`. Run `npm run timeline:media` fo
 ## Dev cautions
 
 One change at a time in `DayTimeline.tsx`; verify in browser; revert don't repair (`CLAUDE.md`).
+
+**Regression guard:** before editing the timeline, read `.cursor/rules/daytimeline-regression-guard.mdc` and skim `docs/daytimeline-bug-log.md`. When a change causes a bug, append a row to the bug log before calling the work done.

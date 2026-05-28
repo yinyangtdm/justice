@@ -56,5 +56,6 @@ When they do, use `npm run docker` (build → Docker image → container `jfy` o
 ## Key files
 
 - `components/DayTimeline.tsx` — interactive timeline of May 2 events, with zoom zones
+- `docs/daytimeline-bug-log.md` — append here when a timeline change causes a bug (see regression guard rule)
 - `lib/events.ts` — shared event data
 - `app/` — Next.js app router pages (legal, events, news, yong, references, art, videos)
