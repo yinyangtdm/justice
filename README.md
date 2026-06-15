@@ -1,2 +1,2 @@
 # justice
-Justice for Yong websitr
+Justice for Yong website
